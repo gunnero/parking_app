@@ -1,5 +1,8 @@
 import { registerRootComponent } from 'expo';
 
+// Expo background tasks must be defined while the JavaScript bundle loads,
+// before React mounts any views.
+import './src/tasks/parkingDepartureTask';
 import App from './App';
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

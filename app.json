@@ -10,7 +10,19 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow Parking Bitola to use your location to detect nearby test parking zones."
+          "locationWhenInUsePermission": "Allow Parking Bitola to use your location to detect nearby test parking zones and remember where parking starts.",
+          "locationAlwaysAndWhenInUsePermission": "Allow Parking Bitola to use your location in the background so it can remind you if you leave while parking is active.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "androidForegroundServiceIcon": "./assets/android-icon-monochrome.png"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#176B49"
         }
       ]
     ],

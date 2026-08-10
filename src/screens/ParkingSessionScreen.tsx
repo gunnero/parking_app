@@ -1,8 +1,11 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -13,6 +16,8 @@ import {
   runStopParkingSmsFlow,
   type ParkingSessionSmsFlowResult,
 } from '../services/parkingSessionSmsFlow';
+import type { ParkingReminderRuntimeStatus } from '../services/parkingReminderController';
+import { useParkingReminderStore } from '../stores/parkingReminderStore';
 import { useParkingSessionStore } from '../stores/parkingSessionStore';
 import type { ParkingSession } from '../types/parkingSession';
 import { getParkingSessionElapsedDisplay } from '../utils/parkingSessionState';
@@ -109,6 +114,186 @@ function ErrorNotice({ message }: { message: string }) {
         Request not prepared
       </Text>
       <Text style={styles.errorText}>{message}</Text>
+    </View>
+  );
+}
+
+type ReminderStatusTone = 'positive' | 'neutral' | 'warning' | 'error';
+
+function getReminderStatusPresentation(
+  enabled: boolean,
+  status: ParkingReminderRuntimeStatus,
+): { label: string; tone: ReminderStatusTone } {
+  if (
+    (!enabled && status !== 'error' && status !== 'storage-error') ||
+    status === 'disabled'
+  ) {
+    return { label: 'OFF', tone: 'neutral' };
+  }
+
+  switch (status) {
+    case 'monitoring':
+      return { label: 'ON', tone: 'positive' };
+    case 'monitoring-without-notifications':
+      return { label: 'UNAVAILABLE', tone: 'warning' };
+    case 'reminder-sent':
+      return { label: 'SENT', tone: 'positive' };
+    case 'idle':
+      return { label: 'CHECKING', tone: 'neutral' };
+    case 'inactive':
+      return { label: 'PAUSED', tone: 'neutral' };
+    case 'missing-start-location':
+    case 'permission-required':
+    case 'unsupported':
+      return { label: 'UNAVAILABLE', tone: 'warning' };
+    case 'error':
+    case 'reminder-failed':
+    case 'storage-error':
+      return { label: 'ERROR', tone: 'error' };
+  }
+}
+
+function reminderStatusStyle(tone: ReminderStatusTone) {
+  switch (tone) {
+    case 'positive':
+      return styles.reminderStatusPositive;
+    case 'warning':
+      return styles.reminderStatusWarning;
+    case 'error':
+      return styles.reminderStatusError;
+    case 'neutral':
+      return styles.reminderStatusNeutral;
+  }
+}
+
+function ParkingReminderCard({ session }: { session: ParkingSession }) {
+  const enabled = useParkingReminderStore((state) => state.enabled);
+  const isBusy = useParkingReminderStore((state) => state.isBusy);
+  const runtime = useParkingReminderStore((state) => state.runtime);
+  const reminderError = useParkingReminderStore((state) => state.error);
+  const setEnabled = useParkingReminderStore((state) => state.setEnabled);
+  const setupPermissions = useParkingReminderStore(
+    (state) => state.setupPermissions,
+  );
+  const reconcile = useParkingReminderStore((state) => state.reconcile);
+
+  const presentation = getReminderStatusPresentation(
+    enabled,
+    reminderError ? 'error' : runtime.status,
+  );
+  const canRequestLocation =
+    runtime.status === 'permission-required' &&
+    runtime.canAskLocationAgain;
+  const canRequestNotifications =
+    runtime.status === 'monitoring-without-notifications' &&
+    runtime.canAskNotificationAgain;
+  const needsSettings =
+    enabled &&
+    ((runtime.status === 'permission-required' &&
+      !runtime.canAskLocationAgain) ||
+      (runtime.status === 'monitoring-without-notifications' &&
+        !runtime.canAskNotificationAgain));
+  const canRetry =
+    runtime.status === 'error' ||
+    runtime.status === 'storage-error' ||
+    reminderError !== null;
+  const reason = reminderError
+    ? reminderError
+    : enabled ||
+        runtime.status === 'error' ||
+        runtime.status === 'storage-error'
+      ? runtime.reason
+      : 'Departure reminders are off.';
+
+  const explainAndSetUp = () => {
+    Alert.alert(
+      'Set up parking reminders',
+      'Allow background location so Parking can remind you if you leave while a parking session is still active. Parking is never stopped automatically, and no route history is stored.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => void setupPermissions(session),
+        },
+      ],
+    );
+  };
+
+  const openSettings = () => {
+    void Linking.openSettings();
+  };
+
+  return (
+    <View style={styles.reminderCard}>
+      <View style={styles.reminderHeader}>
+        <View style={styles.reminderHeadingGroup}>
+          <Text style={styles.reminderTitle}>Parking reminder</Text>
+          <View style={styles.reminderStatusRow}>
+            {isBusy ? (
+              <ActivityIndicator color="#176B49" size="small" />
+            ) : null}
+            <Text
+              accessibilityLiveRegion="polite"
+              style={[
+                styles.reminderStatus,
+                reminderStatusStyle(presentation.tone),
+              ]}
+            >
+              {presentation.label}
+            </Text>
+          </View>
+        </View>
+        <Switch
+          accessibilityHint="Controls background departure monitoring for the active parking session."
+          accessibilityLabel="Parking departure reminders"
+          disabled={isBusy}
+          onValueChange={(nextEnabled) =>
+            void setEnabled(nextEnabled, session)
+          }
+          thumbColor="#FFFFFF"
+          trackColor={{ false: '#AAB7C4', true: '#55A184' }}
+          value={enabled}
+        />
+      </View>
+      <Text style={styles.reminderReason}>{reason}</Text>
+      {enabled && (canRequestLocation || canRequestNotifications) ? (
+        <View style={styles.reminderAction}>
+          <AppButton
+            disabled={isBusy}
+            label={
+              canRequestNotifications
+                ? 'ENABLE NOTIFICATIONS'
+                : 'SET UP REMINDER'
+            }
+            onPress={explainAndSetUp}
+            variant="secondary"
+          />
+        </View>
+      ) : null}
+      {canRetry ? (
+        <View style={styles.reminderAction}>
+          <AppButton
+            disabled={isBusy}
+            label="RETRY REMINDER CHECK"
+            onPress={() =>
+              void (enabled
+                ? reconcile(session)
+                : setEnabled(false, session))
+            }
+            variant="secondary"
+          />
+        </View>
+      ) : null}
+      {needsSettings ? (
+        <View style={styles.reminderAction}>
+          <AppButton
+            disabled={isBusy}
+            label="OPEN SETTINGS"
+            onPress={openSettings}
+            variant="ghost"
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -368,6 +553,7 @@ export function ParkingSessionScreen() {
               </Text>
             </View>
           </View>
+          <ParkingReminderCard session={session} />
           {operationError ? <ErrorNotice message={operationError} /> : null}
           <View style={styles.actions}>
             <AppButton
@@ -660,6 +846,60 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     fontWeight: '900',
     marginTop: 5,
+  },
+  reminderCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DDE5EC',
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 16,
+  },
+  reminderHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'space-between',
+  },
+  reminderHeadingGroup: {
+    flex: 1,
+  },
+  reminderTitle: {
+    color: '#17324D',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  reminderStatusRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+    marginTop: 4,
+  },
+  reminderStatus: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  reminderStatusPositive: {
+    color: '#176B49',
+  },
+  reminderStatusNeutral: {
+    color: '#667085',
+  },
+  reminderStatusWarning: {
+    color: '#9A6700',
+  },
+  reminderStatusError: {
+    color: '#B42318',
+  },
+  reminderReason: {
+    color: '#52697F',
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 10,
+  },
+  reminderAction: {
+    marginTop: 10,
   },
   errorNotice: {
     backgroundColor: '#FFF5F4',

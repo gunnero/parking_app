@@ -7,6 +7,11 @@ import type {
   ParkingSessionRequestResult,
   ParkingSessionStatus,
 } from "../types/parkingSession";
+import {
+  PARKING_SESSION_STORAGE_KEY,
+  PARKING_SESSION_STORAGE_VERSION,
+  publishHydratedParkingSessionSnapshot,
+} from "../services/parkingSessionPersistence";
 import { createParkingSessionDraft } from "../utils/parkingSmsEligibility";
 import {
   canResetParkingSession,
@@ -15,8 +20,10 @@ import {
   type ParkingSessionEvent,
 } from "../utils/parkingSessionState";
 
-export const PARKING_SESSION_STORAGE_KEY = "parkingapp-current-session";
-export const PARKING_SESSION_STORAGE_VERSION = 1;
+export {
+  PARKING_SESSION_STORAGE_KEY,
+  PARKING_SESSION_STORAGE_VERSION,
+} from "../services/parkingSessionPersistence";
 
 export type PrepareParkingSessionInput = Parameters<
   typeof createParkingSessionDraft
@@ -254,3 +261,12 @@ export const selectHasBlockingParkingSession = (
 export const selectCanResetParkingSession = (
   state: ParkingSessionStoreState,
 ): boolean => canResetParkingSession(state.session);
+
+useParkingSessionStore.subscribe((state, previousState) => {
+  if (
+    state.hasHydrated &&
+    (!previousState.hasHydrated || state.session !== previousState.session)
+  ) {
+    publishHydratedParkingSessionSnapshot(state.session);
+  }
+});
