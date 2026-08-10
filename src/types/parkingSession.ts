@@ -6,24 +6,51 @@ export type ParkingSessionStatus =
   | "awaiting_confirmation"
   | "active"
   | "stopping"
+  | "awaiting_stop_confirmation"
   | "completed"
   | "failed";
 
-export interface ParkingSession {
-  id: string;
-  operatorId: string;
-  zoneId: string;
-  zoneCode: string;
-  vehicleId: string;
-  plate: string;
-  startedAt: string | null;
-  stoppedAt: string | null;
-  status: ParkingSessionStatus;
-  startLocation: LocationCoordinates | null;
-  lastKnownLocation: LocationCoordinates | null;
-  smsNumber: string;
-  startMessage: string;
-  stopMessage: string;
-  estimatedCost: ParkingMoney | null;
-  finalCost: ParkingMoney | null;
+export type ParkingSessionDeliveryMode = "simulation" | "sms";
+
+/** A prepared request still requires explicit operator confirmation. */
+export type ParkingSessionRequestResult = "simulated" | "sent" | "unknown";
+
+export interface ParkingSessionOwnership {
+  readonly driverUserId?: string;
+  readonly requesterUserId?: string;
+  readonly payerUserId?: string;
+  readonly smsSenderUserId?: string;
 }
+
+export interface ParkingSessionBase {
+  readonly id: string;
+  readonly operatorId: string;
+  readonly zoneId: string;
+  readonly zoneCode: string;
+  readonly vehicleId: string;
+  readonly plate: string;
+  readonly ownership?: ParkingSessionOwnership;
+  readonly startRequestPreparedAt: string | null;
+  readonly startRequestResult: ParkingSessionRequestResult | null;
+  readonly startedAt: string | null;
+  readonly stopRequestPreparedAt: string | null;
+  readonly stopRequestResult: ParkingSessionRequestResult | null;
+  readonly stoppedAt: string | null;
+  readonly status: ParkingSessionStatus;
+  readonly startLocation: LocationCoordinates | null;
+  readonly lastKnownLocation: LocationCoordinates | null;
+  readonly startMessage: string;
+  readonly stopMessage: string;
+  readonly estimatedCost: ParkingMoney | null;
+  readonly finalCost: ParkingMoney | null;
+}
+
+export type ParkingSession =
+  | (ParkingSessionBase & {
+      readonly deliveryMode: "simulation";
+      readonly smsNumber: null;
+    })
+  | (ParkingSessionBase & {
+      readonly deliveryMode: "sms";
+      readonly smsNumber: string;
+    });

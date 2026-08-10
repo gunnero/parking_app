@@ -1,13 +1,19 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton, InfoCard } from '../components';
 import { TEST_PARKING_ZONES } from '../data/testParkingZones';
+import {
+  runStartParkingSmsFlow,
+  type ParkingSessionSmsFlowResult,
+} from '../services/parkingSessionSmsFlow';
 import { useLocationStore } from '../stores/locationStore';
+import { useParkingSessionStore } from '../stores/parkingSessionStore';
 import {
   selectDefaultVehicle,
   useVehicleStore,
 } from '../stores/vehicleStore';
+import { buildStartParkingMessage } from '../utils/parkingSms';
 import { detectParkingZone } from '../utils/zoneDetection';
 
 type HomeScreenProps = {
@@ -24,6 +30,28 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
   const permissionState = useLocationStore((state) => state.permissionState);
   const locationError = useLocationStore((state) => state.error);
   const refreshLocation = useLocationStore((state) => state.refreshLocation);
+  const prepareSession = useParkingSessionStore(
+    (state) => state.prepareSession,
+  );
+  const markStartRequestPrepared = useParkingSessionStore(
+    (state) => state.markStartRequestPrepared,
+  );
+  const setOperationError = useParkingSessionStore(
+    (state) => state.setOperationError,
+  );
+  const clearOperationError = useParkingSessionStore(
+    (state) => state.clearOperationError,
+  );
+  const isStarting = useParkingSessionStore(
+    (state) => state.smsFlowInFlight,
+  );
+  const beginSmsFlow = useParkingSessionStore(
+    (state) => state.beginSmsFlow,
+  );
+  const finishSmsFlow = useParkingSessionStore(
+    (state) => state.finishSmsFlow,
+  );
+  const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshLocation();
@@ -82,6 +110,114 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
       : 'Official Bitola parking-zone mapping awaits verification.'
     : 'A zone will be checked after a location is available.';
 
+  const smsPreview = useMemo(() => {
+    if (!detectedZone || !defaultVehicle) {
+      return null;
+    }
+
+    try {
+      return buildStartParkingMessage(
+        detectedZone.code,
+        defaultVehicle.plate,
+      );
+    } catch {
+      return null;
+    }
+  }, [defaultVehicle, detectedZone]);
+
+  const canPrepareSession =
+    hasHydrated &&
+    Boolean(defaultVehicle) &&
+    Boolean(detectedZone) &&
+    Boolean(smsPreview);
+
+  const startFlowError = (result: ParkingSessionSmsFlowResult): string => {
+    if ('reason' in result) {
+      return result.reason;
+    }
+
+    return result.outcome === 'cancelled'
+      ? 'The SMS composer was cancelled. No parking start request was prepared.'
+      : 'The parking start request could not be prepared.';
+  };
+
+  const handleStartParking = async () => {
+    setStartError(null);
+
+    if (!hasHydrated) {
+      setStartError('Saved vehicles are still loading. Please try again.');
+      return;
+    }
+
+    if (!defaultVehicle) {
+      setStartError('Add or select a default vehicle before parking.');
+      return;
+    }
+
+    if (!detectedZone) {
+      setStartError('A supported parking zone has not been identified.');
+      return;
+    }
+
+    if (!smsPreview) {
+      setStartError('The parking request preview is invalid.');
+      return;
+    }
+
+    if (!beginSmsFlow()) {
+      return;
+    }
+
+    clearOperationError();
+
+    try {
+      const result = prepareSession({
+        zone: detectedZone,
+        vehicle: defaultVehicle,
+        startLocation: hasCoordinates
+          ? { latitude, longitude, accuracy }
+          : null,
+        explicitUserAction: true,
+      });
+
+      if (!result.success) {
+        setStartError(result.error);
+        return;
+      }
+
+      if (!result.session) {
+        setStartError('The parking session could not be prepared.');
+        return;
+      }
+
+      const flowResult = await runStartParkingSmsFlow(result.session, true);
+
+      if (flowResult.requestResult === null) {
+        setOperationError(startFlowError(flowResult));
+        return;
+      }
+
+      const transition = markStartRequestPrepared(flowResult.requestResult);
+
+      if (!transition.success) {
+        setOperationError(transition.error);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : 'The parking start request could not be prepared.';
+
+      if (useParkingSessionStore.getState().session) {
+        setOperationError(message);
+      } else {
+        setStartError(message);
+      }
+    } finally {
+      finishSmsFlow();
+    }
+  };
+
   return (
     <ScrollView
       contentContainerStyle={styles.scrollContent}
@@ -132,6 +268,73 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
             detail={zoneDetail}
             tone={detectedZone ? 'warning' : 'neutral'}
           />
+        </View>
+
+        <View style={styles.startCard}>
+          <Text style={styles.startTitle}>Start parking</Text>
+
+          {!hasHydrated ? (
+            <Text style={styles.startUnavailable}>
+              Loading the saved vehicle before parking can start.
+            </Text>
+          ) : !defaultVehicle ? (
+            <Text style={styles.startUnavailable}>
+              No default vehicle. Add or select a vehicle first.
+            </Text>
+          ) : !detectedZone ? (
+            <Text style={styles.startUnavailable}>
+              {hasCoordinates
+                ? 'Parking zone not yet identified. Official Bitola mapping awaits verification.'
+                : 'A current GPS position is needed to identify a supported zone.'}
+            </Text>
+          ) : (
+            <>
+              <View style={styles.simulationBanner}>
+                <Text style={styles.simulationTitle}>
+                  DEVELOPMENT / SIMULATED PARKING
+                </Text>
+                <Text style={styles.simulationText}>
+                  TEST zones never open or send a real SMS.
+                </Text>
+              </View>
+              <View style={styles.previewRows}>
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Development zone</Text>
+                  <Text style={styles.previewValue}>{detectedZone.code}</Text>
+                </View>
+                <View style={styles.previewDivider} />
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Vehicle</Text>
+                  <Text style={styles.previewValue}>
+                    {defaultVehicle.plate}
+                  </Text>
+                </View>
+                <View style={styles.previewDivider} />
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>SMS</Text>
+                  <Text selectable style={styles.previewValue}>
+                    {smsPreview}
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+
+          {startError ? (
+            <Text accessibilityRole="alert" style={styles.startError}>
+              {startError}
+            </Text>
+          ) : null}
+
+          <View style={styles.startAction}>
+            <AppButton
+              accessibilityHint="Prepares a simulated parking session for the detected development zone"
+              disabled={!canPrepareSession}
+              label="START PARKING"
+              loading={isStarting}
+              onPress={() => void handleStartParking()}
+            />
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -209,6 +412,84 @@ const styles = StyleSheet.create({
   },
   cards: {
     gap: 12,
+  },
+  startCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DDE5EC',
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 20,
+    padding: 17,
+  },
+  startTitle: {
+    color: '#17324D',
+    fontSize: 21,
+    fontWeight: '900',
+    marginBottom: 14,
+  },
+  startUnavailable: {
+    color: '#52697F',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  simulationBanner: {
+    backgroundColor: '#FFF4D6',
+    borderColor: '#E6A817',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+    padding: 12,
+  },
+  simulationTitle: {
+    color: '#6D4A00',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.45,
+  },
+  simulationText: {
+    color: '#765D27',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  previewRows: {
+    borderColor: '#E2E8EE',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+  },
+  previewRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+    minHeight: 50,
+    paddingVertical: 9,
+  },
+  previewLabel: {
+    color: '#667085',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  previewValue: {
+    color: '#17324D',
+    flexShrink: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'right',
+  },
+  previewDivider: {
+    backgroundColor: '#E8EDF2',
+    height: 1,
+  },
+  startError: {
+    color: '#B42318',
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 12,
+  },
+  startAction: {
+    marginTop: 16,
   },
   actions: {
     gap: 10,

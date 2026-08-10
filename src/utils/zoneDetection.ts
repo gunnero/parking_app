@@ -42,7 +42,7 @@ export function detectParkingZone(
         !zone.active ||
         (zone.geographyStatus !== "test" &&
           zone.geographyStatus !== "verified") ||
-        !isUsableGeometry(zone.geometry)
+        !isUsableParkingZoneGeometry(zone.geometry)
       ) {
         continue;
       }
@@ -70,7 +70,9 @@ export function detectParkingZone(
   return null;
 }
 
-function isUsableGeometry(value: unknown): value is ParkingZoneGeometry {
+export function isUsableParkingZoneGeometry(
+  value: unknown,
+): value is ParkingZoneGeometry {
   if (!value || typeof value !== "object" || !("type" in value)) {
     return false;
   }

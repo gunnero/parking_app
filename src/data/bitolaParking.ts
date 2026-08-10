@@ -21,6 +21,7 @@ export const BITOLA_PARKING_OPERATOR: ParkingOperator = {
   id: BITOLA_PARKING_OPERATOR_ID,
   city: "Bitola",
   country: "MK",
+  environment: "production",
   sms: BITOLA_PARKING_SMS_PROTOCOL,
 };
 
