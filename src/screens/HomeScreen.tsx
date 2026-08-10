@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppButton, InfoCard } from '../components';
-import { BITOLA_TEST_ZONES } from '../data/bitolaZones';
+import { TEST_PARKING_ZONES } from '../data/testParkingZones';
 import { useLocationStore } from '../stores/locationStore';
 import {
   selectDefaultVehicle,
@@ -33,7 +33,7 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
   const detectedZone = useMemo(
     () =>
       hasCoordinates
-        ? detectParkingZone(latitude, longitude, BITOLA_TEST_ZONES)
+        ? detectParkingZone(latitude, longitude, TEST_PARKING_ZONES)
         : null,
     [hasCoordinates, latitude, longitude],
   );
@@ -72,13 +72,14 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
         : `Accuracy: approximately ${Math.round(accuracy)} m`;
   }
 
-  const zoneValue = hasCoordinates
-    ? detectedZone?.code ?? 'Outside parking zone'
-    : 'Waiting for GPS';
+  const zoneLabel = detectedZone ? 'Development zone' : 'Parking zone';
+  const zoneValue = !hasCoordinates
+    ? 'Waiting for GPS'
+    : detectedZone?.code ?? 'Parking zone not yet identified';
   const zoneDetail = hasCoordinates
     ? detectedZone
-      ? `${detectedZone.name}. Test polygon only — not an official Bitola boundary.`
-      : 'Your position is outside the active test polygons.'
+      ? `${detectedZone.name}. Synthetic development data only — not an official Bitola parking zone.`
+      : 'Official Bitola parking-zone mapping awaits verification.'
     : 'A zone will be checked after a location is available.';
 
   return (
@@ -95,7 +96,7 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
           </View>
           <Text style={styles.title}>Parking Bitola</Text>
           <Text style={styles.subtitle}>
-            Your vehicle and current test parking zone, in one place.
+            Your vehicle, current GPS position, and development-zone check.
           </Text>
         </View>
 
@@ -126,10 +127,10 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
           />
 
           <InfoCard
-            label="Detected zone"
+            label={zoneLabel}
             value={zoneValue}
             detail={zoneDetail}
-            tone={detectedZone ? 'success' : 'neutral'}
+            tone={detectedZone ? 'warning' : 'neutral'}
           />
         </View>
 
@@ -152,7 +153,7 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
           <Text style={styles.testNoticeTitle}>Test data notice</Text>
           <Text style={styles.testNoticeText}>
             TEST-A1 and TEST-A2 are synthetic development polygons. They are not
-            real Bitola parking zones, prices, SMS numbers, or parking rules.
+            verified or official Bitola parking-zone boundaries.
           </Text>
         </View>
       </View>
