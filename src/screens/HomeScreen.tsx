@@ -1,26 +1,56 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
-import { AppButton, InfoCard } from '../components';
+import {
+  AppButton,
+  AppHeader,
+  AppIcon,
+  Card,
+  InfoRow,
+  PermissionCard,
+  StatusBadge,
+} from '../components';
 import { TEST_PARKING_ZONES } from '../data/testParkingZones';
 import {
   runStartParkingSmsFlow,
   type ParkingSessionSmsFlowResult,
 } from '../services/parkingSessionSmsFlow';
 import { useLocationStore } from '../stores/locationStore';
+import { useParkingReminderStore } from '../stores/parkingReminderStore';
 import { useParkingSessionStore } from '../stores/parkingSessionStore';
 import {
   selectDefaultVehicle,
   useVehicleStore,
 } from '../stores/vehicleStore';
+import { useAppTheme, type AppTheme } from '../theme';
 import { buildStartParkingMessage } from '../utils/parkingSms';
 import { detectParkingZone } from '../utils/zoneDetection';
 
 type HomeScreenProps = {
   onManageVehicles: () => void;
+  onOpenAppearance: () => void;
 };
 
-export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
+export function HomeScreen({
+  onManageVehicles,
+  onOpenAppearance,
+}: HomeScreenProps) {
+  const { theme } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 360;
+  const shouldStackStatus = width < 360;
+  const styles = useMemo(
+    () => createStyles(theme, isCompact),
+    [isCompact, theme],
+  );
   const defaultVehicle = useVehicleStore(selectDefaultVehicle);
   const hasHydrated = useVehicleStore((state) => state.hasHydrated);
   const latitude = useLocationStore((state) => state.latitude);
@@ -51,11 +81,12 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
   const finishSmsFlow = useParkingSessionStore(
     (state) => state.finishSmsFlow,
   );
+  const reminderEnabled = useParkingReminderStore((state) => state.enabled);
+  const reminderHasHydrated = useParkingReminderStore(
+    (state) => state.hasHydrated,
+  );
   const [startError, setStartError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void refreshLocation();
-  }, [refreshLocation]);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   const hasCoordinates = latitude !== null && longitude !== null;
   const detectedZone = useMemo(
@@ -70,45 +101,70 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
   const isPermissionDenied = permissionState === 'denied';
   const isRefreshing = isRequestingPermission || isLoading;
 
-  let gpsValue = 'Waiting to request location';
-  let gpsDetail = 'Only foreground location is used.';
-  let gpsTone: 'neutral' | 'warning' | 'error' = 'neutral';
+  let gpsValue = 'Not checked';
+  let gpsDetail = 'Use your location when you are ready.';
+  let gpsTone:
+    | 'neutral'
+    | 'accent'
+    | 'success'
+    | 'warning'
+    | 'danger' = 'neutral';
 
   if (isRequestingPermission) {
-    gpsValue = 'Requesting permission…';
-    gpsDetail = 'Respond to the location prompt to continue.';
+    gpsValue = 'Requesting access';
+    gpsDetail = 'Choose whether to share your foreground location.';
     gpsTone = 'warning';
   } else if (isPermissionDenied) {
-    gpsValue = 'Permission denied';
-    gpsDetail =
-      locationError?.message ??
-      'Enable foreground location access in your device settings.';
-    gpsTone = 'error';
+    gpsValue = 'Location access off';
+    gpsDetail = 'Open Settings to allow foreground location.';
+    gpsTone = 'danger';
   } else if (isLoading) {
-    gpsValue = 'Finding your position…';
-    gpsDetail = 'Waiting for a current high-accuracy GPS fix.';
+    gpsValue = 'Finding location';
+    gpsDetail = 'This can take a moment outdoors or near a window.';
     gpsTone = 'warning';
   } else if (locationError) {
     gpsValue = 'GPS unavailable';
-    gpsDetail = locationError.message;
-    gpsTone = 'error';
+    gpsDetail =
+      locationError.code === 'LOCATION_SERVICES_DISABLED'
+        ? 'Turn on Location Services, then try again.'
+        : 'We could not get a current location. Try again.';
+    gpsTone = 'danger';
   } else if (hasCoordinates) {
-    gpsValue = `${latitude.toFixed(6)} / ${longitude.toFixed(6)}`;
+    gpsValue = 'GPS ready';
     gpsDetail =
       accuracy === null
-        ? 'Accuracy is not available on this device.'
-        : `Accuracy: approximately ${Math.round(accuracy)} m`;
+        ? 'Current location is available.'
+        : `Accurate to about ${Math.max(1, Math.round(accuracy))} m.`;
+    gpsTone = 'success';
   }
 
-  const zoneLabel = detectedZone ? 'Development zone' : 'Parking zone';
-  const zoneValue = !hasCoordinates
-    ? 'Waiting for GPS'
-    : detectedZone?.code ?? 'Parking zone not yet identified';
-  const zoneDetail = hasCoordinates
-    ? detectedZone
-      ? `${detectedZone.name}. Synthetic development data only — not an official Bitola parking zone.`
-      : 'Official Bitola parking-zone mapping awaits verification.'
-    : 'A zone will be checked after a location is available.';
+  const reminderValue = !reminderHasHydrated
+    ? 'Checking'
+    : reminderEnabled
+      ? 'On for sessions'
+      : 'Off';
+  const reminderTone = !reminderHasHydrated
+    ? 'neutral'
+    : reminderEnabled
+      ? 'success'
+      : 'neutral';
+
+  const handleRefreshLocation = () => {
+    setSettingsError(null);
+    void refreshLocation();
+  };
+
+  const handleOpenSettings = async () => {
+    setSettingsError(null);
+
+    try {
+      await Linking.openSettings();
+    } catch {
+      setSettingsError(
+        'Device settings could not be opened. Open Settings manually and allow foreground location.',
+      );
+    }
+  };
 
   const smsPreview = useMemo(() => {
     if (!detectedZone || !defaultVehicle) {
@@ -218,300 +274,539 @@ export function HomeScreen({ onManageVehicles }: HomeScreenProps) {
     }
   };
 
+  let startUnavailable: string | null = null;
+
+  if (!hasHydrated) {
+    startUnavailable = 'Loading your saved vehicle…';
+  } else if (!defaultVehicle) {
+    startUnavailable = 'Add or select a default vehicle before parking.';
+  } else if (!detectedZone) {
+    startUnavailable = hasCoordinates
+      ? 'Parking cannot start until a supported zone is identified.'
+      : 'Use your location to identify a supported parking zone.';
+  } else if (!smsPreview) {
+    startUnavailable = 'The parking request preview is unavailable.';
+  }
+
   return (
     <ScrollView
+      accessibilityLabel="Parking home"
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.eyebrowRow}>
-            <View style={styles.liveDot} />
-            <Text style={styles.eyebrow}>FOREGROUND GPS · TEST ZONES</Text>
+      <View
+        style={[
+          styles.content,
+          isCompact && styles.contentCompact,
+        ]}
+      >
+        <AppHeader
+          appearanceLabel={isCompact ? 'Theme' : 'Appearance'}
+          onAppearance={onOpenAppearance}
+          title="Parking Bitola"
+          variant="appearance"
+        />
+
+        <Card elevated padding="spacious">
+          <View accessibilityLiveRegion="polite" style={styles.zoneHero}>
+            {detectedZone ? (
+              <>
+                <View style={styles.zoneBadgeWrap}>
+                  <StatusBadge
+                    icon="development"
+                    label="DEVELOPMENT MODE"
+                    tone="development"
+                  />
+                </View>
+                <Text
+                  accessibilityRole="header"
+                  style={styles.zoneTitle}
+                >
+                  Simulated zone
+                </Text>
+                <Text
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.68}
+                  numberOfLines={1}
+                  selectable
+                  style={styles.zoneCode}
+                >
+                  {detectedZone.code}
+                </Text>
+                <View
+                  accessible={false}
+                  importantForAccessibility="no-hide-descendants"
+                  style={styles.zoneDivider}
+                >
+                  <View style={styles.zoneRule} />
+                  <View style={styles.zoneParkingMark}>
+                    <AppIcon
+                      color={theme.colors.developmentText}
+                      name="parking"
+                      size={24}
+                    />
+                  </View>
+                  <View style={styles.zoneRule} />
+                </View>
+                <Text style={styles.zoneDescription}>
+                  You are in a simulated zone. No real parking request will be
+                  sent to an operator.
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.zoneBadgeWrap}>
+                  <StatusBadge
+                    icon={hasCoordinates ? 'location-off' : 'location'}
+                    label="CURRENT PARKING ZONE"
+                    tone={locationError ? 'warning' : 'neutral'}
+                  />
+                </View>
+                {isRefreshing ? (
+                  <ActivityIndicator
+                    accessibilityLabel="Finding parking zone"
+                    color={theme.colors.accent}
+                    size="large"
+                  />
+                ) : null}
+                <Text
+                  accessibilityRole="header"
+                  style={styles.zoneEmptyTitle}
+                >
+                  {isRefreshing
+                    ? 'Finding your parking zone'
+                    : hasCoordinates
+                      ? 'Parking zone not identified'
+                      : isPermissionDenied
+                        ? 'Location access needed'
+                        : locationError
+                          ? 'Location unavailable'
+                          : 'Find your parking zone'}
+                </Text>
+                <Text style={styles.zoneDescription}>
+                  {isRefreshing
+                    ? 'Getting a current foreground location. This can take a moment.'
+                    : hasCoordinates
+                      ? 'We know your location, but verified parking-zone mapping is not available here yet.'
+                      : isPermissionDenied
+                        ? 'Allow foreground location in Settings so the app can identify your parking zone.'
+                        : locationError
+                          ? 'Check Location Services and try again when you are ready.'
+                          : 'Your foreground location is used only when you choose to identify a parking zone.'}
+                </Text>
+                {hasCoordinates && !isRefreshing ? (
+                  <AppButton
+                    compact
+                    fullWidth={false}
+                    label="Refresh location"
+                    leadingIcon="refresh"
+                    onPress={handleRefreshLocation}
+                    variant="secondary"
+                  />
+                ) : null}
+              </>
+            )}
           </View>
-          <Text style={styles.title}>Parking Bitola</Text>
-          <Text style={styles.subtitle}>
-            Your vehicle, current GPS position, and development-zone check.
-          </Text>
-        </View>
+        </Card>
 
-        <View style={styles.cards}>
-          <InfoCard
-            label="Current vehicle"
-            value={
-              hasHydrated
-                ? defaultVehicle?.plate ?? 'No default vehicle'
-                : 'Loading vehicle…'
-            }
-            detail={
-              !hasHydrated
-                ? 'Reading local vehicle data.'
-                : defaultVehicle?.nickname
-                  ? `${defaultVehicle.nickname} · Default vehicle`
-                  : defaultVehicle
-                    ? 'Default vehicle'
-                    : 'Add or select a default vehicle to continue.'
-            }
-          />
-
-          <InfoCard
-            label="Current GPS"
-            value={gpsValue}
-            detail={gpsDetail}
-            tone={gpsTone}
-          />
-
-          <InfoCard
-            label={zoneLabel}
-            value={zoneValue}
-            detail={zoneDetail}
-            tone={detectedZone ? 'warning' : 'neutral'}
-          />
-        </View>
-
-        <View style={styles.startCard}>
-          <Text style={styles.startTitle}>Start parking</Text>
-
-          {!hasHydrated ? (
-            <Text style={styles.startUnavailable}>
-              Loading the saved vehicle before parking can start.
-            </Text>
-          ) : !defaultVehicle ? (
-            <Text style={styles.startUnavailable}>
-              No default vehicle. Add or select a vehicle first.
-            </Text>
-          ) : !detectedZone ? (
-            <Text style={styles.startUnavailable}>
-              {hasCoordinates
-                ? 'Parking zone not yet identified. Official Bitola mapping awaits verification.'
-                : 'A current GPS position is needed to identify a supported zone.'}
-            </Text>
+        {!hasCoordinates && !isLoading ? (
+          isRequestingPermission ? (
+            <PermissionCard
+              description="Choose whether to share your foreground location so we can identify your parking zone."
+              loading
+              state="requesting"
+              title="Location access"
+            />
+          ) : isPermissionDenied ? (
+            <PermissionCard
+              actionLabel="Open Settings"
+              description="Enable foreground location for Parking Bitola, then return and refresh your location."
+              onAction={() => void handleOpenSettings()}
+              state="denied"
+              title="Location access is off"
+            />
+          ) : locationError ? (
+            <PermissionCard
+              actionLabel="Try again"
+              description={
+                locationError.code === 'LOCATION_SERVICES_DISABLED'
+                  ? 'Turn on Location Services to identify your parking zone.'
+                  : 'Your current location could not be read. Check your signal and try again.'
+              }
+              onAction={handleRefreshLocation}
+              state={
+                locationError.code === 'LOCATION_SERVICES_DISABLED'
+                  ? 'unavailable'
+                  : 'error'
+              }
+              title={
+                locationError.code === 'LOCATION_SERVICES_DISABLED'
+                  ? 'Location Services are off'
+                  : 'Location is unavailable'
+              }
+            />
           ) : (
-            <>
-              <View style={styles.simulationBanner}>
-                <Text style={styles.simulationTitle}>
-                  DEVELOPMENT / SIMULATED PARKING
-                </Text>
-                <Text style={styles.simulationText}>
-                  TEST zones never open or send a real SMS.
-                </Text>
-              </View>
-              <View style={styles.previewRows}>
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Development zone</Text>
-                  <Text style={styles.previewValue}>{detectedZone.code}</Text>
-                </View>
-                <View style={styles.previewDivider} />
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Vehicle</Text>
-                  <Text style={styles.previewValue}>
-                    {defaultVehicle.plate}
-                  </Text>
-                </View>
-                <View style={styles.previewDivider} />
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>SMS</Text>
-                  <Text selectable style={styles.previewValue}>
-                    {smsPreview}
-                  </Text>
-                </View>
-              </View>
-            </>
-          )}
+            <PermissionCard
+              actionLabel="Use my location"
+              description="Location is used to identify your parking zone. Permission is requested only after you continue."
+              onAction={handleRefreshLocation}
+              state="idle"
+              title="Find your parking zone"
+            />
+          )
+        ) : null}
 
-          {startError ? (
-            <Text accessibilityRole="alert" style={styles.startError}>
-              {startError}
+        {settingsError ? (
+          <Card padding="compact" tone="danger">
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              {settingsError}
             </Text>
+          </Card>
+        ) : null}
+
+        <Card elevated>
+          <View
+            accessibilityLabel={
+              hasHydrated
+                ? defaultVehicle
+                  ? `Current vehicle ${defaultVehicle.plate}${defaultVehicle.nickname ? `, ${defaultVehicle.nickname}` : ''}. Default vehicle.`
+                  : 'No default vehicle selected.'
+                : 'Loading current vehicle.'
+            }
+            accessible
+            style={styles.vehicleRow}
+          >
+            <View style={styles.vehicleIcon}>
+              <AppIcon color={theme.colors.accentText} name="car" size={28} />
+            </View>
+            <View style={styles.vehicleCopy}>
+              <Text style={styles.overline}>Current vehicle</Text>
+              <Text selectable style={styles.vehiclePlate}>
+                {hasHydrated
+                  ? defaultVehicle?.plate ?? 'No vehicle selected'
+                  : 'Loading vehicle…'}
+              </Text>
+              <Text style={styles.vehicleNickname}>
+                {!hasHydrated
+                  ? 'Reading saved vehicle data.'
+                  : defaultVehicle?.nickname ??
+                    (defaultVehicle
+                      ? 'Ready for parking'
+                      : 'Add a vehicle to continue.')}
+              </Text>
+            </View>
+            {hasHydrated && defaultVehicle ? (
+              <View style={styles.vehicleBadge}>
+                <StatusBadge label="DEFAULT" tone="accent" />
+              </View>
+            ) : null}
+          </View>
+        </Card>
+
+        <Card padding="none">
+          <View
+            style={[
+              styles.statusGrid,
+              shouldStackStatus && styles.statusGridCompact,
+            ]}
+          >
+            <View style={styles.statusBlock}>
+              <View style={styles.statusHeading}>
+                <AppIcon
+                  color={theme.colors.accentText}
+                  name="navigation"
+                  size={20}
+                />
+                <Text style={styles.statusLabel}>GPS status</Text>
+              </View>
+              <StatusBadge label={gpsValue} tone={gpsTone} />
+              <Text style={styles.statusDetail}>{gpsDetail}</Text>
+            </View>
+            <View
+              style={[
+                styles.statusDivider,
+                shouldStackStatus && styles.statusDividerCompact,
+              ]}
+            />
+            <View style={styles.statusBlock}>
+              <View style={styles.statusHeading}>
+                <AppIcon
+                  color={theme.colors.accentText}
+                  name="notification-active"
+                  size={20}
+                />
+                <Text style={styles.statusLabel}>Parking reminder</Text>
+              </View>
+              <StatusBadge label={reminderValue} tone={reminderTone} />
+              <Text style={styles.statusDetail}>
+                {reminderHasHydrated
+                  ? reminderEnabled
+                    ? 'Enabled for active parking sessions.'
+                    : 'Disabled in reminder settings.'
+                  : 'Reading your saved preference.'}
+              </Text>
+            </View>
+          </View>
+        </Card>
+
+        <View style={styles.primaryAction}>
+          <AppButton
+            accessibilityHint="Prepares a simulated parking session for the detected development zone"
+            disabled={!canPrepareSession}
+            label="START PARKING"
+            leadingIcon="parking"
+            loading={isStarting}
+            onPress={() => void handleStartParking()}
+          />
+
+          {startUnavailable ? (
+            <Text style={styles.startUnavailable}>{startUnavailable}</Text>
           ) : null}
 
-          <View style={styles.startAction}>
-            <AppButton
-              accessibilityHint="Prepares a simulated parking session for the detected development zone"
-              disabled={!canPrepareSession}
-              label="START PARKING"
-              loading={isStarting}
-              onPress={() => void handleStartParking()}
-            />
-          </View>
+          {startError ? (
+            <Card padding="compact" tone="danger">
+              <Text accessibilityRole="alert" style={styles.errorText}>
+                {startError}
+              </Text>
+            </Card>
+          ) : null}
+
+          {detectedZone ? (
+            <View style={styles.simulationNote}>
+              <AppIcon
+                color={theme.colors.developmentText}
+                name="shield"
+                size={19}
+              />
+              <Text style={styles.simulationText}>
+                Simulation only · TEST zones never open or send a real SMS.
+              </Text>
+            </View>
+          ) : null}
+
+          {detectedZone && defaultVehicle && smsPreview ? (
+            <Card padding="compact" tone="development">
+              <InfoRow
+                detail="Generated for the simulated parking-session flow."
+                icon="sms"
+                label="SMS preview"
+                tone="development"
+                value={smsPreview}
+              />
+            </Card>
+          ) : null}
         </View>
 
         <View style={styles.actions}>
-          <AppButton
-            accessibilityHint="Requests foreground permission if needed and reads the current GPS position"
-            label="Refresh location"
-            loading={isRefreshing}
-            onPress={() => void refreshLocation()}
-          />
+          {!hasCoordinates || detectedZone ? (
+            <AppButton
+              accessibilityHint="Requests foreground permission if needed and reads the current GPS position"
+              compact
+              label="Refresh location"
+              leadingIcon="refresh"
+              loading={isRefreshing}
+              onPress={handleRefreshLocation}
+              variant="secondary"
+            />
+          ) : null}
           <AppButton
             accessibilityHint="Opens the local vehicle list"
+            compact
             label="Manage vehicles"
+            leadingIcon="car"
             onPress={onManageVehicles}
-            variant="secondary"
+            variant="ghost"
           />
         </View>
 
-        <View style={styles.testNotice}>
-          <Text style={styles.testNoticeTitle}>Test data notice</Text>
-          <Text style={styles.testNoticeText}>
-            TEST-A1 and TEST-A2 are synthetic development polygons. They are not
-            verified or official Bitola parking-zone boundaries.
-          </Text>
-        </View>
+        <Text style={styles.dataNotice}>
+          TEST-A1 and TEST-A2 use synthetic development boundaries. They are
+          not verified or official Bitola parking zones.
+        </Text>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    alignSelf: 'center',
-    maxWidth: 680,
-    paddingBottom: 32,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    width: '100%',
-  },
-  header: {
-    marginBottom: 24,
-  },
-  eyebrowRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  liveDot: {
-    backgroundColor: '#2E9D6D',
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  eyebrow: {
-    color: '#52697F',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  title: {
-    color: '#132E47',
-    fontSize: 34,
-    fontWeight: '900',
-    letterSpacing: -1,
-    lineHeight: 40,
-  },
-  subtitle: {
-    color: '#52697F',
-    fontSize: 16,
-    lineHeight: 23,
-    marginTop: 8,
-  },
-  cards: {
-    gap: 12,
-  },
-  startCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DDE5EC',
-    borderRadius: 16,
-    borderWidth: 1,
-    marginTop: 20,
-    padding: 17,
-  },
-  startTitle: {
-    color: '#17324D',
-    fontSize: 21,
-    fontWeight: '900',
-    marginBottom: 14,
-  },
-  startUnavailable: {
-    color: '#52697F',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  simulationBanner: {
-    backgroundColor: '#FFF4D6',
-    borderColor: '#E6A817',
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-    padding: 12,
-  },
-  simulationTitle: {
-    color: '#6D4A00',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.45,
-  },
-  simulationText: {
-    color: '#765D27',
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 3,
-  },
-  previewRows: {
-    borderColor: '#E2E8EE',
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 13,
-  },
-  previewRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-    minHeight: 50,
-    paddingVertical: 9,
-  },
-  previewLabel: {
-    color: '#667085',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  previewValue: {
-    color: '#17324D',
-    flexShrink: 1,
-    fontSize: 16,
-    fontWeight: '800',
-    textAlign: 'right',
-  },
-  previewDivider: {
-    backgroundColor: '#E8EDF2',
-    height: 1,
-  },
-  startError: {
-    color: '#B42318',
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 12,
-  },
-  startAction: {
-    marginTop: 16,
-  },
-  actions: {
-    gap: 10,
-    marginTop: 20,
-  },
-  testNotice: {
-    backgroundColor: '#EAF3F0',
-    borderColor: '#C4DDD4',
-    borderRadius: 14,
-    borderWidth: 1,
-    marginTop: 20,
-    padding: 15,
-  },
-  testNoticeTitle: {
-    color: '#1E6047',
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  testNoticeText: {
-    color: '#3F6255',
-    fontSize: 13,
-    lineHeight: 19,
-  },
-});
+function createStyles(theme: AppTheme, isCompact: boolean) {
+  return StyleSheet.create({
+    scrollContent: {
+      flexGrow: 1,
+    },
+    content: {
+      alignSelf: 'center',
+      gap: theme.spacing.xl,
+      maxWidth: theme.layout.maxContentWidth,
+      paddingBottom: theme.spacing.xxl,
+      paddingHorizontal: theme.layout.screenPadding,
+      paddingTop: theme.spacing.md,
+      width: '100%',
+    },
+    contentCompact: {
+      paddingHorizontal: theme.layout.compactScreenPadding,
+    },
+    zoneHero: {
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      minWidth: 0,
+    },
+    zoneBadgeWrap: {
+      alignItems: 'center',
+      width: '100%',
+    },
+    zoneTitle: {
+      ...theme.typography.title,
+      color: theme.colors.text,
+      marginTop: theme.spacing.xxs,
+      textAlign: 'center',
+    },
+    zoneCode: {
+      ...theme.typography.number,
+      color: theme.colors.developmentText,
+      fontSize: isCompact ? 56 : 64,
+      lineHeight: isCompact ? 64 : 72,
+      textAlign: 'center',
+      width: '100%',
+    },
+    zoneEmptyTitle: {
+      ...theme.typography.titleLarge,
+      color: theme.colors.text,
+      textAlign: 'center',
+    },
+    zoneDescription: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      maxWidth: '92%',
+      textAlign: 'center',
+    },
+    zoneDivider: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      maxWidth: '88%',
+      width: '100%',
+    },
+    zoneRule: {
+      backgroundColor: theme.colors.development,
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+    },
+    zoneParkingMark: {
+      alignItems: 'center',
+      borderColor: theme.colors.development,
+      borderRadius: theme.radii.full,
+      borderWidth: 1,
+      height: theme.touchTargets.minimum,
+      justifyContent: 'center',
+      width: theme.touchTargets.minimum,
+    },
+    errorText: {
+      ...theme.typography.caption,
+      color: theme.colors.dangerText,
+    },
+    vehicleRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+      minWidth: 0,
+    },
+    vehicleIcon: {
+      alignItems: 'center',
+      backgroundColor: theme.colors.accentSurface,
+      borderRadius: theme.radii.md,
+      height: theme.touchTargets.primary,
+      justifyContent: 'center',
+      width: theme.touchTargets.primary,
+    },
+    vehicleCopy: {
+      flex: 1,
+      minWidth: 128,
+    },
+    overline: {
+      ...theme.typography.overline,
+      color: theme.colors.textMuted,
+    },
+    vehiclePlate: {
+      ...theme.typography.title,
+      color: theme.colors.text,
+      marginTop: theme.spacing.xxs,
+    },
+    vehicleNickname: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xxs,
+    },
+    vehicleBadge: {
+      flexShrink: 1,
+    },
+    statusGrid: {
+      flexDirection: 'row',
+      minWidth: 0,
+    },
+    statusGridCompact: {
+      flexDirection: 'column',
+    },
+    statusBlock: {
+      flex: 1,
+      gap: theme.spacing.xs,
+      minWidth: 0,
+      padding: theme.spacing.md,
+    },
+    statusHeading: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: theme.spacing.xs,
+    },
+    statusLabel: {
+      ...theme.typography.label,
+      color: theme.colors.text,
+      flex: 1,
+    },
+    statusDetail: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+    },
+    statusDivider: {
+      alignSelf: 'stretch',
+      backgroundColor: theme.colors.border,
+      width: StyleSheet.hairlineWidth,
+    },
+    statusDividerCompact: {
+      height: StyleSheet.hairlineWidth,
+      width: '100%',
+    },
+    primaryAction: {
+      gap: theme.spacing.sm,
+    },
+    startUnavailable: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+      paddingHorizontal: theme.spacing.sm,
+      textAlign: 'center',
+    },
+    simulationNote: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: theme.spacing.xs,
+      justifyContent: 'center',
+      paddingHorizontal: theme.spacing.sm,
+    },
+    simulationText: {
+      ...theme.typography.caption,
+      color: theme.colors.developmentText,
+      flexShrink: 1,
+      textAlign: 'center',
+    },
+    actions: {
+      gap: theme.spacing.xs,
+    },
+    dataNotice: {
+      ...theme.typography.caption,
+      color: theme.colors.textMuted,
+      paddingHorizontal: theme.spacing.md,
+      textAlign: 'center',
+    },
+  });
+}

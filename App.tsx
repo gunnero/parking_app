@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
@@ -14,16 +14,31 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import { AppIcon } from './src/components';
+import {
+  applyVisualPreviewScenario,
+  isVisualPreviewEnabled,
+} from './src/dev';
+import { AppearanceScreen } from './src/screens/AppearanceScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ParkingSessionScreen } from './src/screens/ParkingSessionScreen';
 import { VehicleManagementScreen } from './src/screens/VehicleManagementScreen';
 import { useParkingReminderStore } from './src/stores/parkingReminderStore';
 import { useParkingSessionStore } from './src/stores/parkingSessionStore';
+import { ThemeProvider, useAppTheme, type AppTheme } from './src/theme';
 
-type AppScreen = 'home' | 'vehicles';
+type AppScreen = 'home' | 'vehicles' | 'appearance';
 
-export default function App() {
-  const [screen, setScreen] = useState<AppScreen>('home');
+const visualPreview = isVisualPreviewEnabled
+  ? applyVisualPreviewScenario()
+  : null;
+
+function ParkingApp() {
+  const [screen, setScreen] = useState<AppScreen>(
+    visualPreview?.route ?? 'home',
+  );
+  const { theme, hasHydrated: themeHasHydrated } = useAppTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const session = useParkingSessionStore((state) => state.session);
   const sessionHasHydrated = useParkingSessionStore(
     (state) => state.hasHydrated,
@@ -44,6 +59,10 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (isVisualPreviewEnabled) {
+      return;
+    }
+
     void hydrateReminder();
   }, [hydrateReminder]);
 
@@ -54,7 +73,7 @@ export default function App() {
   }, [session]);
 
   useEffect(() => {
-    if (session || screen !== 'vehicles') {
+    if (session || screen === 'home') {
       return undefined;
     }
 
@@ -70,6 +89,10 @@ export default function App() {
   }, [screen, session]);
 
   useEffect(() => {
+    if (isVisualPreviewEnabled) {
+      return;
+    }
+
     if (
       !sessionHasHydrated ||
       !reminderHasHydrated ||
@@ -93,6 +116,10 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    if (isVisualPreviewEnabled) {
+      return undefined;
+    }
+
     if (!sessionHasHydrated || !reminderHasHydrated) {
       return undefined;
     }
@@ -122,62 +149,104 @@ export default function App() {
     sessionHasHydrated,
   ]);
 
+  const isRestoring =
+    !themeHasHydrated || !sessionHasHydrated || !reminderHasHydrated;
+
   let content;
 
-  if (!sessionHasHydrated || !reminderHasHydrated) {
+  if (isRestoring) {
     content = (
       <View
         accessibilityLiveRegion="polite"
         style={styles.restorationContainer}
       >
-        <ActivityIndicator color="#176B49" size="large" />
-        <Text style={styles.restorationTitle}>Restoring parking data…</Text>
+        <View style={styles.restorationMark}>
+          <AppIcon
+            color={theme.colors.onAccent}
+            name="parking"
+            size={29}
+          />
+        </View>
+        <ActivityIndicator
+          color={theme.colors.accent}
+          size="large"
+          style={styles.restorationSpinner}
+        />
+        <Text style={styles.restorationTitle}>Getting parking ready</Text>
         <Text style={styles.restorationText}>
-          Checking this device for a parking session and reminder settings.
+          Restoring your vehicle, parking session, and reminder preference.
         </Text>
       </View>
     );
   } else if (session) {
     content = <ParkingSessionScreen />;
   } else if (screen === 'home') {
-    content = <HomeScreen onManageVehicles={() => setScreen('vehicles')} />;
-  } else {
+    content = (
+      <HomeScreen
+        onManageVehicles={() => setScreen('vehicles')}
+        onOpenAppearance={() => setScreen('appearance')}
+      />
+    );
+  } else if (screen === 'vehicles') {
     content = <VehicleManagementScreen onBack={() => setScreen('home')} />;
+  } else {
+    content = <AppearanceScreen onBack={() => setScreen('home')} />;
   }
 
   return (
+    <>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+      <SafeAreaView style={styles.safeArea}>{content}</SafeAreaView>
+    </>
+  );
+}
+
+export default function App() {
+  return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={styles.safeArea}>
-        {content}
-      </SafeAreaView>
+      <ThemeProvider>
+        <ParkingApp />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F4F7FA',
-  },
-  restorationContainer: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-  },
-  restorationTitle: {
-    color: '#17324D',
-    fontSize: 20,
-    fontWeight: '800',
-    marginTop: 18,
-    textAlign: 'center',
-  },
-  restorationText: {
-    color: '#667085',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
-    textAlign: 'center',
-  },
-});
+function createStyles(theme: AppTheme) {
+  return StyleSheet.create({
+    safeArea: {
+      backgroundColor: theme.colors.background,
+      flex: 1,
+    },
+    restorationContainer: {
+      alignItems: 'center',
+      backgroundColor: theme.colors.background,
+      flex: 1,
+      justifyContent: 'center',
+      paddingHorizontal: theme.spacing.xxl,
+    },
+    restorationMark: {
+      alignItems: 'center',
+      backgroundColor: theme.colors.accent,
+      borderRadius: theme.radii.md,
+      height: 54,
+      justifyContent: 'center',
+      width: 54,
+    },
+    restorationSpinner: {
+      marginTop: theme.spacing.xl,
+    },
+    restorationTitle: {
+      ...theme.typography.title,
+      color: theme.colors.text,
+      marginTop: theme.spacing.lg,
+      textAlign: 'center',
+    },
+    restorationText: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xs,
+      maxWidth: 340,
+      textAlign: 'center',
+    },
+  });
+}

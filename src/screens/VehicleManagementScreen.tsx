@@ -1,18 +1,26 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
-import { AppButton } from '../components';
+import {
+  AppButton,
+  AppHeader,
+  Card,
+  EmptyState,
+  StatusBadge,
+} from '../components';
 import { useVehicleStore } from '../stores/vehicleStore';
+import { type AppTheme, useAppTheme } from '../theme';
 import type { Vehicle } from '../types/vehicle';
 
 type VehicleManagementScreenProps = {
@@ -29,6 +37,13 @@ export function VehicleManagementScreen({
   const deleteVehicle = useVehicleStore((state) => state.deleteVehicle);
   const setDefaultVehicle = useVehicleStore(
     (state) => state.setDefaultVehicle,
+  );
+  const { theme } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 360;
+  const styles = useMemo(
+    () => createStyles(theme, isCompact),
+    [isCompact, theme],
   );
 
   const [plate, setPlate] = useState('');
@@ -115,34 +130,32 @@ export function VehicleManagementScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <Pressable
-            accessibilityHint="Returns to the parking overview"
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={onBack}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
-          >
-            <Text style={styles.backButtonText}>‹ Back</Text>
-          </Pressable>
+          <AppHeader
+            backLabel="Parking"
+            onBack={onBack}
+            subtitle="Keep the plate you park most often ready to use."
+            title="Your vehicles"
+            variant="back"
+          />
 
-          <View style={styles.header}>
-            <Text style={styles.title}>Manage vehicles</Text>
-            <Text style={styles.subtitle}>
-              Vehicle profiles are stored locally on this device.
-            </Text>
-          </View>
+          <Card elevated padding={isCompact ? 'compact' : 'regular'}>
+            <View style={styles.formHeading}>
+              <View style={styles.formHeadingCopy}>
+                <Text style={styles.sectionTitle}>
+                  {editingId ? 'Edit vehicle' : 'Add a vehicle'}
+                </Text>
+                <Text style={styles.sectionDetail}>
+                  Stored privately on this device.
+                </Text>
+              </View>
+              {editingId ? (
+                <StatusBadge label="Editing" tone="accent" />
+              ) : null}
+            </View>
 
-          <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>
-              {editingId ? 'Edit vehicle' : 'Add a vehicle'}
-            </Text>
-
-            <Text style={styles.inputLabel}>Plate</Text>
+            <Text style={styles.inputLabel}>Registration plate</Text>
             <TextInput
-              accessibilityLabel="Vehicle plate"
+              accessibilityLabel="Vehicle registration plate"
               autoCapitalize="characters"
               autoCorrect={false}
               editable={hasHydrated}
@@ -152,16 +165,17 @@ export function VehicleManagementScreen({
                 setFormError(null);
               }}
               placeholder="BT7713AD"
-              placeholderTextColor="#8A9AA9"
+              placeholderTextColor={theme.colors.textMuted}
               returnKeyType="next"
-              style={styles.input}
+              selectionColor={theme.colors.accent}
+              style={[styles.input, styles.plateInput]}
               value={plate}
             />
             <Text style={styles.inputHelp}>
-              Spaces and hyphens are removed automatically.
+              Spaces and hyphens are removed when you save.
             </Text>
 
-            <Text style={[styles.inputLabel, styles.nicknameLabel]}>
+            <Text style={styles.inputLabel}>
               Nickname <Text style={styles.optional}>(optional)</Text>
             </Text>
             <TextInput
@@ -175,91 +189,129 @@ export function VehicleManagementScreen({
               }}
               onSubmitEditing={handleSubmit}
               placeholder="Family car"
-              placeholderTextColor="#8A9AA9"
+              placeholderTextColor={theme.colors.textMuted}
               returnKeyType="done"
+              selectionColor={theme.colors.accent}
               style={styles.input}
               value={nickname}
             />
 
             {formError ? (
-              <Text accessibilityRole="alert" style={styles.formError}>
-                {formError}
-              </Text>
+              <View accessibilityRole="alert" style={styles.errorNotice}>
+                <Text style={styles.errorText}>{formError}</Text>
+              </View>
             ) : null}
 
             <View style={styles.formActions}>
-              <View style={styles.formActionPrimary}>
+              <View style={styles.primaryFormAction}>
                 <AppButton
                   disabled={!hasHydrated}
+                  fullWidth
                   label={editingId ? 'Save changes' : 'Add vehicle'}
+                  leadingIcon={editingId ? 'check' : 'add'}
                   onPress={handleSubmit}
                 />
               </View>
               {editingId ? (
-                <View style={styles.formActionSecondary}>
+                <View style={styles.secondaryFormAction}>
                   <AppButton
+                    fullWidth
                     label="Cancel"
+                    leadingIcon="close"
                     onPress={resetForm}
                     variant="ghost"
                   />
                 </View>
               ) : null}
             </View>
-          </View>
+          </Card>
 
-          <View style={styles.listHeader}>
-            <Text style={styles.sectionTitle}>Your vehicles</Text>
-            <Text style={styles.count}>{vehicles.length}</Text>
+          <View style={styles.listHeading}>
+            <Text style={styles.sectionTitle}>Saved vehicles</Text>
+            <StatusBadge
+              label={`${vehicles.length} ${vehicles.length === 1 ? 'vehicle' : 'vehicles'}`}
+              tone="neutral"
+            />
           </View>
 
           {!hasHydrated ? (
-            <Text style={styles.emptyText}>Loading saved vehicles…</Text>
+            <Card padding="spacious">
+              <View
+                accessibilityLiveRegion="polite"
+                accessibilityRole="progressbar"
+                style={styles.loadingState}
+              >
+                <ActivityIndicator color={theme.colors.accent} />
+                <Text style={styles.loadingText}>Loading saved vehicles…</Text>
+              </View>
+            </Card>
           ) : vehicles.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>No vehicles yet</Text>
-              <Text style={styles.emptyText}>
-                Add a plate above. The first vehicle becomes the default.
-              </Text>
-            </View>
+            <EmptyState
+              description="Add a registration plate above. Your first vehicle becomes the default."
+              icon="car"
+              title="No vehicles saved"
+            />
           ) : (
             <View style={styles.vehicleList}>
               {vehicles.map((vehicle) => (
-                <View key={vehicle.id} style={styles.vehicleCard}>
+                <Card
+                  elevated={vehicle.isDefault}
+                  key={vehicle.id}
+                  padding={isCompact ? 'compact' : 'regular'}
+                  tone={vehicle.isDefault ? 'accent' : 'default'}
+                >
                   <View style={styles.vehicleHeading}>
                     <View style={styles.vehicleIdentity}>
-                      <Text style={styles.plate}>{vehicle.plate}</Text>
-                      {vehicle.nickname ? (
-                        <Text style={styles.nickname}>{vehicle.nickname}</Text>
-                      ) : null}
+                      <Text selectable style={styles.plate}>
+                        {vehicle.plate}
+                      </Text>
+                      <Text style={styles.nickname}>
+                        {vehicle.nickname ?? 'No nickname'}
+                      </Text>
                     </View>
                     {vehicle.isDefault ? (
-                      <View style={styles.defaultBadge}>
-                        <Text style={styles.defaultBadgeText}>DEFAULT</Text>
-                      </View>
+                      <StatusBadge label="Default" tone="success" />
                     ) : null}
                   </View>
 
                   <View style={styles.vehicleActions}>
                     {!vehicle.isDefault ? (
-                      <VehicleAction
-                        accessibilityLabel={`Set ${vehicle.plate} as default vehicle`}
-                        label="Set default"
-                        onPress={() => handleSetDefault(vehicle)}
-                      />
+                      <View style={styles.vehicleAction}>
+                        <AppButton
+                          accessibilityLabel={`Set ${vehicle.plate} as default vehicle`}
+                          compact
+                          fullWidth
+                          label="Set default"
+                          leadingIcon="selected"
+                          onPress={() => handleSetDefault(vehicle)}
+                          variant="secondary"
+                        />
+                      </View>
                     ) : null}
-                    <VehicleAction
-                      accessibilityLabel={`Edit ${vehicle.plate}`}
-                      label="Edit"
-                      onPress={() => handleEdit(vehicle)}
-                    />
-                    <VehicleAction
-                      accessibilityLabel={`Delete ${vehicle.plate}`}
-                      danger
-                      label="Delete"
-                      onPress={() => handleDelete(vehicle)}
-                    />
+                    <View style={styles.vehicleAction}>
+                      <AppButton
+                        accessibilityLabel={`Edit ${vehicle.plate}`}
+                        compact
+                        fullWidth
+                        label="Edit"
+                        leadingIcon="edit"
+                        onPress={() => handleEdit(vehicle)}
+                        variant="ghost"
+                      />
+                    </View>
+                    <View style={styles.vehicleAction}>
+                      <AppButton
+                        accessibilityLabel={`Delete ${vehicle.plate}`}
+                        compact
+                        fullWidth
+                        label="Delete"
+                        leadingIcon="delete"
+                        onPress={() => handleDelete(vehicle)}
+                        variant="danger"
+                      />
+                    </View>
                   </View>
-                </View>
+                </Card>
               ))}
             </View>
           )}
@@ -269,259 +321,150 @@ export function VehicleManagementScreen({
   );
 }
 
-type VehicleActionProps = {
-  accessibilityLabel: string;
-  label: string;
-  onPress: () => void;
-  danger?: boolean;
-};
-
-function VehicleAction({
-  accessibilityLabel,
-  label,
-  onPress,
-  danger = false,
-}: VehicleActionProps) {
-  return (
-    <Pressable
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.vehicleAction,
-        danger && styles.vehicleActionDanger,
-        pressed && styles.vehicleActionPressed,
-      ]}
-    >
-      <Text
-        style={[
-          styles.vehicleActionText,
-          danger && styles.vehicleActionTextDanger,
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
+function createStyles(theme: AppTheme, isCompact: boolean) {
+  return StyleSheet.create({
+    flex: {
+      backgroundColor: theme.colors.background,
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    content: {
+      alignSelf: 'center',
+      gap: theme.spacing.lg,
+      maxWidth: theme.layout.maxContentWidth,
+      paddingBottom: theme.spacing.xxxl,
+      paddingHorizontal: isCompact
+        ? theme.layout.compactScreenPadding
+        : theme.layout.screenPadding,
+      paddingTop: theme.spacing.sm,
+      width: '100%',
+    },
+    formHeading: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      justifyContent: 'space-between',
+    },
+    formHeadingCopy: {
+      flex: 1,
+    },
+    sectionTitle: {
+      ...theme.typography.heading,
+      color: theme.colors.text,
+    },
+    sectionDetail: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xxs,
+    },
+    inputLabel: {
+      ...theme.typography.label,
+      color: theme.colors.textSecondary,
+      marginBottom: theme.spacing.xs,
+      marginTop: theme.spacing.lg,
+    },
+    optional: {
+      color: theme.colors.textMuted,
+      fontWeight: '400',
+    },
+    input: {
+      ...theme.typography.body,
+      backgroundColor: theme.colors.surfaceMuted,
+      borderColor: theme.colors.borderStrong,
+      borderRadius: theme.radii.md,
+      borderWidth: 1,
+      color: theme.colors.text,
+      minHeight: theme.touchTargets.comfortable,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+    },
+    plateInput: {
+      fontSize: 18,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+    },
+    inputHelp: {
+      ...theme.typography.caption,
+      color: theme.colors.textMuted,
+      marginTop: theme.spacing.xs,
+    },
+    errorNotice: {
+      backgroundColor: theme.colors.dangerSurface,
+      borderRadius: theme.radii.md,
+      marginTop: theme.spacing.md,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.sm,
+    },
+    errorText: {
+      ...theme.typography.caption,
+      color: theme.colors.dangerText,
+    },
+    formActions: {
+      alignItems: 'stretch',
+      flexDirection: isCompact ? 'column' : 'row',
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.lg,
+    },
+    primaryFormAction: {
+      flex: isCompact ? undefined : 1,
+    },
+    secondaryFormAction: {
+      minWidth: isCompact ? undefined : 96,
+    },
+    listHeading: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.xs,
+      justifyContent: 'space-between',
+      marginTop: theme.spacing.xxs,
+    },
+    loadingState: {
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    loadingText: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+    },
+    vehicleList: {
+      gap: theme.spacing.sm,
+    },
+    vehicleHeading: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      justifyContent: 'space-between',
+    },
+    vehicleIdentity: {
+      flex: 1,
+      minWidth: 0,
+    },
+    plate: {
+      color: theme.colors.text,
+      fontSize: isCompact ? 21 : 23,
+      fontVariant: ['tabular-nums'],
+      fontWeight: '700',
+      letterSpacing: 1,
+      lineHeight: isCompact ? 27 : 30,
+    },
+    nickname: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xxs,
+    },
+    vehicleActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.md,
+    },
+    vehicleAction: {
+      flexGrow: 1,
+      minWidth: isCompact ? 112 : 104,
+    },
+  });
 }
-
-const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    alignSelf: 'center',
-    maxWidth: 680,
-    paddingBottom: 36,
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    width: '100%',
-  },
-  backButton: {
-    alignSelf: 'flex-start',
-    borderRadius: 10,
-    marginBottom: 16,
-    minHeight: 44,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-  },
-  backButtonPressed: {
-    backgroundColor: '#E7EEF5',
-  },
-  backButtonText: {
-    color: '#194F82',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  header: {
-    marginBottom: 20,
-  },
-  title: {
-    color: '#132E47',
-    fontSize: 31,
-    fontWeight: '900',
-    letterSpacing: -0.8,
-  },
-  subtitle: {
-    color: '#52697F',
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 7,
-  },
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DDE5EC',
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 17,
-  },
-  sectionTitle: {
-    color: '#17324D',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  inputLabel: {
-    color: '#344C62',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 7,
-    marginTop: 18,
-  },
-  nicknameLabel: {
-    marginTop: 15,
-  },
-  optional: {
-    color: '#718294',
-    fontWeight: '500',
-  },
-  input: {
-    backgroundColor: '#F9FBFC',
-    borderColor: '#B8C7D4',
-    borderRadius: 12,
-    borderWidth: 1,
-    color: '#132E47',
-    fontSize: 16,
-    minHeight: 50,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  inputHelp: {
-    color: '#718294',
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 6,
-  },
-  formError: {
-    color: '#B42318',
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 19,
-    marginTop: 12,
-  },
-  formActions: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 18,
-  },
-  formActionPrimary: {
-    flex: 1,
-  },
-  formActionSecondary: {
-    minWidth: 88,
-  },
-  listHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 11,
-    marginTop: 26,
-  },
-  count: {
-    backgroundColor: '#DDE9F2',
-    borderRadius: 12,
-    color: '#355A79',
-    fontSize: 12,
-    fontWeight: '800',
-    minWidth: 24,
-    overflow: 'hidden',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    textAlign: 'center',
-  },
-  vehicleList: {
-    gap: 10,
-  },
-  vehicleCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DDE5EC',
-    borderRadius: 15,
-    borderWidth: 1,
-    padding: 16,
-  },
-  vehicleHeading: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'space-between',
-  },
-  vehicleIdentity: {
-    flex: 1,
-  },
-  plate: {
-    color: '#132E47',
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  nickname: {
-    color: '#607487',
-    fontSize: 14,
-    marginTop: 3,
-  },
-  defaultBadge: {
-    backgroundColor: '#DDF3E9',
-    borderRadius: 10,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-  defaultBadgeText: {
-    color: '#176B49',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-  vehicleActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
-  },
-  vehicleAction: {
-    backgroundColor: '#F1F6FA',
-    borderColor: '#D3E0E9',
-    borderRadius: 10,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 44,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-  },
-  vehicleActionDanger: {
-    backgroundColor: '#FFF5F4',
-    borderColor: '#F6C7C3',
-  },
-  vehicleActionPressed: {
-    opacity: 0.65,
-  },
-  vehicleActionText: {
-    color: '#24577F',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  vehicleActionTextDanger: {
-    color: '#B42318',
-  },
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DDE5EC',
-    borderRadius: 15,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    padding: 20,
-  },
-  emptyTitle: {
-    color: '#17324D',
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  emptyText: {
-    color: '#607487',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-});

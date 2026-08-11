@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "plugins": [
       [
         "expo-location",
@@ -22,9 +22,11 @@
         "expo-notifications",
         {
           "icon": "./assets/android-icon-monochrome.png",
-          "color": "#176B49"
+          "color": "#1246A0"
         }
-      ]
+      ],
+      "expo-system-ui",
+      "expo-font"
     ],
     "ios": {
       "supportsTablet": true

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,10 +7,17 @@ import {
   StyleSheet,
   Switch,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
-import { AppButton } from '../components';
+import {
+  AppButton,
+  AppHeader,
+  Card,
+  InfoRow,
+  StatusBadge,
+} from '../components';
 import {
   runStartParkingSmsFlow,
   runStopParkingSmsFlow,
@@ -19,6 +26,7 @@ import {
 import type { ParkingReminderRuntimeStatus } from '../services/parkingReminderController';
 import { useParkingReminderStore } from '../stores/parkingReminderStore';
 import { useParkingSessionStore } from '../stores/parkingSessionStore';
+import { type AppTheme, useAppTheme } from '../theme';
 import type { ParkingSession } from '../types/parkingSession';
 import { getParkingSessionElapsedDisplay } from '../utils/parkingSessionState';
 
@@ -54,66 +62,125 @@ function requestFailureMessage(
   return `The parking ${action} request could not be prepared.`;
 }
 
+type SessionStyles = ReturnType<typeof createStyles>;
+type BadgeTone =
+  | 'neutral'
+  | 'accent'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'info'
+  | 'development';
+
 function SessionSnapshot({
-  session,
   includeRequest = false,
+  session,
+  styles,
 }: {
-  session: ParkingSession;
   includeRequest?: boolean;
+  session: ParkingSession;
+  styles: SessionStyles;
 }) {
   return (
-    <View style={styles.snapshotCard}>
-      <SnapshotRow label="Zone" value={session.zoneCode} />
+    <Card padding="none">
+      <View style={styles.infoRow}>
+        <InfoRow icon="parking" label="Zone" value={session.zoneCode} />
+      </View>
       <View style={styles.divider} />
-      <SnapshotRow label="Vehicle" value={session.plate} />
+      <View style={styles.infoRow}>
+        <InfoRow icon="car" label="Vehicle" value={session.plate} />
+      </View>
       {includeRequest ? (
         <>
           <View style={styles.divider} />
-          <SnapshotRow
-            label={session.deliveryMode === 'simulation' ? 'Simulation' : 'SMS'}
-            value={session.startMessage}
-          />
+          <View style={styles.infoRow}>
+            <InfoRow
+              icon={session.deliveryMode === 'simulation' ? 'shield' : 'sms'}
+              label={
+                session.deliveryMode === 'simulation'
+                  ? 'Simulated request'
+                  : 'SMS preview'
+              }
+              tone={
+                session.deliveryMode === 'simulation'
+                  ? 'development'
+                  : 'accent'
+              }
+              value={session.startMessage}
+            />
+          </View>
         </>
       ) : null}
-    </View>
+    </Card>
   );
 }
 
-function SnapshotRow({ label, value }: { label: string; value: string }) {
+function SimulationBanner({
+  session,
+  styles,
+}: {
+  session: ParkingSession;
+  styles: SessionStyles;
+}) {
   return (
-    <View style={styles.snapshotRow}>
-      <Text style={styles.snapshotLabel}>{label}</Text>
-      <Text selectable style={styles.snapshotValue}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function SimulationBanner() {
-  return (
-    <View
-      accessible
-      accessibilityLabel="Development simulated parking. No SMS will be opened or sent."
-      style={styles.simulationBanner}
+    <Card
+      accessibilityLabel={`Development mode. ${session.zoneCode} is a simulated test zone. No SMS will be opened or sent.`}
+      padding="compact"
+      tone="development"
     >
-      <Text style={styles.simulationTitle}>
-        DEVELOPMENT / SIMULATED PARKING
-      </Text>
+      <View style={styles.simulationHeading}>
+        <StatusBadge label="DEVELOPMENT MODE" tone="development" />
+      </View>
+      <Text style={styles.simulationTitle}>Simulated parking session</Text>
       <Text style={styles.simulationText}>
-        No SMS will be opened or sent for this TEST session.
+        {session.zoneCode} uses synthetic test data. It is not an official
+        Bitola parking zone, and no SMS will be opened or sent.
       </Text>
+    </Card>
+  );
+}
+
+function ErrorNotice({
+  message,
+  styles,
+}: {
+  message: string;
+  styles: SessionStyles;
+}) {
+  return (
+    <View accessibilityLiveRegion="assertive">
+      <Card padding="compact" tone="danger">
+        <Text accessibilityRole="alert" style={styles.errorTitle}>
+          Action needs attention
+        </Text>
+        <Text style={styles.errorText}>{message}</Text>
+      </Card>
     </View>
   );
 }
 
-function ErrorNotice({ message }: { message: string }) {
+function StateIntro({
+  badge,
+  badgeTone,
+  description,
+  styles,
+  title,
+}: {
+  badge: string;
+  badgeTone: BadgeTone;
+  description: string;
+  styles: SessionStyles;
+  title: string;
+}) {
   return (
-    <View accessibilityLiveRegion="assertive" style={styles.errorNotice}>
-      <Text accessibilityRole="alert" style={styles.errorTitle}>
-        Request not prepared
+    <View style={styles.stateIntro}>
+      <View style={styles.badgeRow}>
+        <StatusBadge label={badge} tone={badgeTone} />
+      </View>
+      <Text accessibilityRole="header" style={styles.stateTitle}>
+        {title}
       </Text>
-      <Text style={styles.errorText}>{message}</Text>
+      <Text style={styles.stateDescription}>{description}</Text>
     </View>
   );
 }
@@ -153,20 +220,28 @@ function getReminderStatusPresentation(
   }
 }
 
-function reminderStatusStyle(tone: ReminderStatusTone) {
+function reminderBadgeTone(tone: ReminderStatusTone): BadgeTone {
   switch (tone) {
     case 'positive':
-      return styles.reminderStatusPositive;
+      return 'success';
     case 'warning':
-      return styles.reminderStatusWarning;
+      return 'warning';
     case 'error':
-      return styles.reminderStatusError;
+      return 'danger';
     case 'neutral':
-      return styles.reminderStatusNeutral;
+      return 'neutral';
   }
 }
 
-function ParkingReminderCard({ session }: { session: ParkingSession }) {
+function ParkingReminderCard({
+  session,
+  styles,
+  theme,
+}: {
+  session: ParkingSession;
+  styles: SessionStyles;
+  theme: AppTheme;
+}) {
   const enabled = useParkingReminderStore((state) => state.enabled);
   const isBusy = useParkingReminderStore((state) => state.isBusy);
   const runtime = useParkingReminderStore((state) => state.runtime);
@@ -224,34 +299,39 @@ function ParkingReminderCard({ session }: { session: ParkingSession }) {
   };
 
   return (
-    <View style={styles.reminderCard}>
+    <Card padding="compact">
       <View style={styles.reminderHeader}>
         <View style={styles.reminderHeadingGroup}>
-          <Text style={styles.reminderTitle}>Parking reminder</Text>
-          <View style={styles.reminderStatusRow}>
+          <Text accessibilityRole="header" style={styles.reminderTitle}>
+            Parking reminder
+          </Text>
+          <View
+            accessibilityLiveRegion="polite"
+            style={styles.reminderStatusRow}
+          >
             {isBusy ? (
-              <ActivityIndicator color="#176B49" size="small" />
+              <ActivityIndicator color={theme.colors.accent} size="small" />
             ) : null}
-            <Text
-              accessibilityLiveRegion="polite"
-              style={[
-                styles.reminderStatus,
-                reminderStatusStyle(presentation.tone),
-              ]}
-            >
-              {presentation.label}
-            </Text>
+            <StatusBadge
+              label={presentation.label}
+              tone={reminderBadgeTone(presentation.tone)}
+            />
           </View>
         </View>
         <Switch
           accessibilityHint="Controls background departure monitoring for the active parking session."
           accessibilityLabel="Parking departure reminders"
           disabled={isBusy}
+          hitSlop={{ bottom: 8, left: 6, right: 6, top: 8 }}
+          ios_backgroundColor={theme.colors.borderStrong}
           onValueChange={(nextEnabled) =>
             void setEnabled(nextEnabled, session)
           }
-          thumbColor="#FFFFFF"
-          trackColor={{ false: '#AAB7C4', true: '#55A184' }}
+          thumbColor={theme.colors.surfaceRaised}
+          trackColor={{
+            false: theme.colors.borderStrong,
+            true: theme.colors.success,
+          }}
           value={enabled}
         />
       </View>
@@ -259,11 +339,15 @@ function ParkingReminderCard({ session }: { session: ParkingSession }) {
       {enabled && (canRequestLocation || canRequestNotifications) ? (
         <View style={styles.reminderAction}>
           <AppButton
+            compact
             disabled={isBusy}
             label={
               canRequestNotifications
-                ? 'ENABLE NOTIFICATIONS'
-                : 'SET UP REMINDER'
+                ? 'Enable notifications'
+                : 'Set up reminder'
+            }
+            leadingIcon={
+              canRequestNotifications ? 'notification' : 'reminder'
             }
             onPress={explainAndSetUp}
             variant="secondary"
@@ -273,8 +357,10 @@ function ParkingReminderCard({ session }: { session: ParkingSession }) {
       {canRetry ? (
         <View style={styles.reminderAction}>
           <AppButton
+            compact
             disabled={isBusy}
-            label="RETRY REMINDER CHECK"
+            label="Retry reminder check"
+            leadingIcon="refresh"
             onPress={() =>
               void (enabled
                 ? reconcile(session)
@@ -287,18 +373,73 @@ function ParkingReminderCard({ session }: { session: ParkingSession }) {
       {needsSettings ? (
         <View style={styles.reminderAction}>
           <AppButton
+            compact
             disabled={isBusy}
-            label="OPEN SETTINGS"
+            label="Open settings"
             onPress={openSettings}
             variant="ghost"
           />
         </View>
       ) : null}
-    </View>
+    </Card>
+  );
+}
+
+function ActiveSessionHero({
+  nowMs,
+  session,
+  styles,
+}: {
+  nowMs: number;
+  session: ParkingSession;
+  styles: SessionStyles;
+}) {
+  const isSimulation = session.deliveryMode === 'simulation';
+  const elapsed = getParkingSessionElapsedDisplay(session, nowMs);
+
+  return (
+    <Card elevated padding="spacious" tone="success">
+      <View style={styles.activeStatusRow}>
+        <StatusBadge
+          label={isSimulation ? 'SIMULATED SESSION' : 'PARKING ACTIVE'}
+          tone={isSimulation ? 'development' : 'success'}
+        />
+      </View>
+      <Text style={styles.elapsedLabel}>Elapsed time</Text>
+      <Text
+        accessibilityLabel={`Elapsed time ${elapsed}`}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+        numberOfLines={1}
+        style={styles.elapsedValue}
+      >
+        {elapsed}
+      </Text>
+      <View style={styles.activeDivider} />
+      <View style={styles.activeFacts}>
+        <View style={styles.activeFact}>
+          <Text style={styles.activeFactLabel}>Zone</Text>
+          <Text style={styles.activeFactValue}>{session.zoneCode}</Text>
+        </View>
+        <View style={styles.activeFact}>
+          <Text style={styles.activeFactLabel}>Vehicle</Text>
+          <Text style={styles.activeFactValue}>{session.plate}</Text>
+        </View>
+        <View style={styles.activeFact}>
+          <Text style={styles.activeFactLabel}>Started</Text>
+          <Text style={styles.activeFactValue}>
+            {formatClockTime(session.startedAt)}
+          </Text>
+        </View>
+      </View>
+    </Card>
   );
 }
 
 export function ParkingSessionScreen() {
+  const { theme } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const session = useParkingSessionStore((state) => state.session);
   const operationError = useParkingSessionStore(
     (state) => state.operationError,
@@ -469,25 +610,42 @@ export function ParkingSessionScreen() {
     case 'preparing':
       body = (
         <>
-          <Text style={styles.statusTitle}>Preparing parking request</Text>
-          <Text style={styles.statusText}>
-            {showSimulation
-              ? 'Prepare the safe development simulation. Nothing will be sent.'
-              : 'Continue to the native SMS composer. Returning from it will not prove operator acceptance.'}
-          </Text>
-          <SessionSnapshot includeRequest session={session} />
-          {operationError ? <ErrorNotice message={operationError} /> : null}
+          <StateIntro
+            badge="PREPARING"
+            badgeTone="accent"
+            description={
+              showSimulation
+                ? 'Prepare this development simulation. Nothing will be sent.'
+                : 'Open the native SMS composer to prepare the parking request. Returning to the app does not confirm operator acceptance.'
+            }
+            styles={styles}
+            title="Prepare parking request"
+          />
+          <SessionSnapshot
+            includeRequest
+            session={session}
+            styles={styles}
+          />
+          {operationError ? (
+            <ErrorNotice message={operationError} styles={styles} />
+          ) : null}
           <View style={styles.actions}>
             <AppButton
               label={
-                operationError ? 'RETRY START REQUEST' : 'PREPARE START REQUEST'
+                operationError
+                  ? 'Try start request again'
+                  : showSimulation
+                    ? 'Prepare simulated request'
+                    : 'Open SMS composer'
               }
+              leadingIcon={showSimulation ? 'shield' : 'sms'}
               loading={isProcessing}
               onPress={() => void prepareStartRequest()}
             />
             <AppButton
               disabled={isProcessing}
-              label="CANCEL"
+              label="Cancel"
+              leadingIcon="close"
               onPress={cancelPendingAndReturnHome}
               variant="ghost"
             />
@@ -499,21 +657,40 @@ export function ParkingSessionScreen() {
     case 'awaiting_confirmation':
       body = (
         <>
-          <Text style={styles.statusTitle}>Parking request prepared</Text>
-          <Text style={styles.statusText}>
-            {showSimulation
-              ? 'The development request is ready for simulated confirmation.'
-              : 'Waiting for confirmation from ЈП Паркинзи. A composer result alone is not operator acceptance.'}
-          </Text>
-          <SessionSnapshot session={session} />
-          {operationError ? <ErrorNotice message={operationError} /> : null}
+          <StateIntro
+            badge="CONFIRMATION NEEDED"
+            badgeTone="warning"
+            description={
+              showSimulation
+                ? 'The simulated request is prepared. Confirm it manually to activate this development session.'
+                : 'The parking SMS is prepared, but parking is not active yet. Confirm only after you receive an activation response from ЈП Паркинзи.'
+            }
+            styles={styles}
+            title={
+              showSimulation
+                ? 'Simulated request prepared'
+                : 'Parking SMS prepared'
+            }
+          />
+          <SessionSnapshot session={session} styles={styles} />
+          <Card padding="compact" tone="warning">
+            <Text style={styles.noticeTitle}>Not active yet</Text>
+            <Text style={styles.noticeText}>
+              Closing the SMS composer alone does not confirm that the operator
+              accepted the request.
+            </Text>
+          </Card>
+          {operationError ? (
+            <ErrorNotice message={operationError} styles={styles} />
+          ) : null}
           <View style={styles.actions}>
             <AppButton
               label={
                 showSimulation
-                  ? 'SIMULATE CONFIRMATION'
-                  : 'CONFIRM PARKING STARTED'
+                  ? 'Confirm simulated start'
+                  : 'Confirm parking started'
               }
+              leadingIcon="check"
               onPress={() =>
                 runTransition(
                   confirmSessionManually,
@@ -522,7 +699,8 @@ export function ParkingSessionScreen() {
               }
             />
             <AppButton
-              label="CANCEL"
+              label="Cancel"
+              leadingIcon="close"
               onPress={cancelPendingAndReturnHome}
               variant="ghost"
             />
@@ -534,30 +712,24 @@ export function ParkingSessionScreen() {
     case 'active':
       body = (
         <>
-          <Text style={styles.activeEyebrow}>
-            {showSimulation ? 'SIMULATED SESSION' : 'PARKING ACTIVE'}
-          </Text>
-          <Text style={styles.statusTitle}>Parking active</Text>
-          <SessionSnapshot session={session} />
-          <View style={styles.timeGrid}>
-            <View style={styles.timeCard}>
-              <Text style={styles.timeLabel}>Started</Text>
-              <Text style={styles.timeValue}>
-                {formatClockTime(session.startedAt)}
-              </Text>
-            </View>
-            <View style={styles.timeCard}>
-              <Text style={styles.timeLabel}>Elapsed</Text>
-              <Text style={styles.timeValue}>
-                {getParkingSessionElapsedDisplay(session, nowMs)}
-              </Text>
-            </View>
-          </View>
-          <ParkingReminderCard session={session} />
-          {operationError ? <ErrorNotice message={operationError} /> : null}
+          <ActiveSessionHero
+            nowMs={nowMs}
+            session={session}
+            styles={styles}
+          />
+          <ParkingReminderCard
+            session={session}
+            styles={styles}
+            theme={theme}
+          />
+          {operationError ? (
+            <ErrorNotice message={operationError} styles={styles} />
+          ) : null}
           <View style={styles.actions}>
             <AppButton
-              label="STOP PARKING"
+              accessibilityHint="Prepares a stop request using the saved parking session. GPS is not required."
+              label="Stop parking"
+              leadingIcon="stop"
               loading={isProcessing}
               onPress={() => void startStopFlow()}
               variant="danger"
@@ -570,30 +742,51 @@ export function ParkingSessionScreen() {
     case 'stopping':
       body = (
         <>
-          <Text style={styles.statusTitle}>Preparing stop request</Text>
-          <Text style={styles.statusText}>
-            {showSimulation
-              ? 'The stop request is simulated and does not use SMS or GPS.'
-              : 'Stopping uses the saved session details and does not require GPS.'}
-          </Text>
-          <SessionSnapshot session={session} />
+          <StateIntro
+            badge="PREPARING STOP"
+            badgeTone="warning"
+            description={
+              showSimulation
+                ? 'Preparing a simulated stop. This does not use SMS or GPS.'
+                : 'Preparing the stop from the saved session details. A current GPS fix is not required.'
+            }
+            styles={styles}
+            title="Stopping parking"
+          />
+          <SessionSnapshot session={session} styles={styles} />
           {isProcessing ? (
-            <View style={styles.processingRow}>
-              <ActivityIndicator color="#176B49" />
-              <Text style={styles.processingText}>Preparing request…</Text>
-            </View>
+            <Card padding="compact" tone="accent">
+              <View
+                accessibilityLiveRegion="polite"
+                style={styles.processingRow}
+              >
+                <ActivityIndicator color={theme.colors.accent} />
+                <View style={styles.processingCopy}>
+                  <Text style={styles.processingTitle}>
+                    Preparing stop request
+                  </Text>
+                  <Text style={styles.processingText}>
+                    Keep this screen open for a moment.
+                  </Text>
+                </View>
+              </View>
+            </Card>
           ) : null}
-          {operationError ? <ErrorNotice message={operationError} /> : null}
+          {operationError ? (
+            <ErrorNotice message={operationError} styles={styles} />
+          ) : null}
           <View style={styles.actions}>
             {!isProcessing ? (
               <AppButton
-                label="RETRY STOP REQUEST"
+                label="Try stop request again"
+                leadingIcon="refresh"
                 onPress={() => void prepareStopRequest()}
               />
             ) : null}
             <AppButton
               disabled={isProcessing}
-              label="RETURN TO ACTIVE SESSION"
+              label="Return to active parking"
+              leadingIcon="back"
               onPress={() =>
                 runTransition(
                   returnToActiveSession,
@@ -610,21 +803,38 @@ export function ParkingSessionScreen() {
     case 'awaiting_stop_confirmation':
       body = (
         <>
-          <Text style={styles.statusTitle}>Stop request prepared</Text>
-          <Text style={styles.statusText}>
-            {showSimulation
-              ? 'Confirm the simulated stop to complete this development session.'
-              : 'Waiting for confirmation from ЈП Паркинзи. The composer result does not prove the session stopped.'}
-          </Text>
-          <SessionSnapshot session={session} />
-          {operationError ? <ErrorNotice message={operationError} /> : null}
+          <StateIntro
+            badge="NOT STOPPED YET"
+            badgeTone="warning"
+            description={
+              showSimulation
+                ? 'The simulated stop is prepared. Confirm it manually to complete this development session.'
+                : 'The stop SMS is prepared, but parking may still be active. Confirm only after you receive a stop response from ЈП Паркинзи.'
+            }
+            styles={styles}
+            title={
+              showSimulation ? 'Simulated stop prepared' : 'Stop SMS prepared'
+            }
+          />
+          <SessionSnapshot session={session} styles={styles} />
+          <Card padding="compact" tone="warning">
+            <Text style={styles.noticeTitle}>Waiting for confirmation</Text>
+            <Text style={styles.noticeText}>
+              Closing the SMS composer alone does not prove that parking has
+              stopped.
+            </Text>
+          </Card>
+          {operationError ? (
+            <ErrorNotice message={operationError} styles={styles} />
+          ) : null}
           <View style={styles.actions}>
             <AppButton
               label={
                 showSimulation
-                  ? 'SIMULATE STOP CONFIRMATION'
-                  : 'CONFIRM PARKING STOPPED'
+                  ? 'Confirm simulated stop'
+                  : 'Confirm parking stopped'
               }
+              leadingIcon="check"
               onPress={() =>
                 runTransition(
                   completeSessionManually,
@@ -633,7 +843,8 @@ export function ParkingSessionScreen() {
               }
             />
             <AppButton
-              label="RETURN TO ACTIVE SESSION"
+              label="Return to active parking"
+              leadingIcon="back"
               onPress={() =>
                 runTransition(
                   returnToActiveSession,
@@ -647,36 +858,55 @@ export function ParkingSessionScreen() {
       );
       break;
 
-    case 'completed': {
+    case 'completed':
       body = (
         <>
-          <Text style={styles.statusTitle}>Parking completed</Text>
-          <Text style={styles.statusText}>
-            {showSimulation
-              ? 'The simulated development session is complete.'
-              : 'This local session has been marked complete.'}
-          </Text>
-          <SessionSnapshot session={session} />
-          <View style={styles.summaryCard}>
-            <SnapshotRow
+          <StateIntro
+            badge="SESSION COMPLETE"
+            badgeTone="success"
+            description={
+              showSimulation
+                ? 'This simulated development session is complete.'
+                : 'This parking session has been marked complete on this device.'
+            }
+            styles={styles}
+            title="Parking completed"
+          />
+          <Card padding="none" tone="success">
+            <InfoRow
+              icon="parking"
+              label="Zone"
+              value={session.zoneCode}
+            />
+            <View style={styles.divider} />
+            <InfoRow icon="car" label="Vehicle" value={session.plate} />
+            <View style={styles.divider} />
+            <InfoRow
+              icon="clock"
               label="Started"
               value={formatClockTime(session.startedAt)}
             />
             <View style={styles.divider} />
-            <SnapshotRow
+            <InfoRow
+              icon="success"
               label="Stopped"
+              tone="success"
               value={formatClockTime(session.stoppedAt)}
             />
             <View style={styles.divider} />
-            <SnapshotRow
+            <InfoRow
+              icon="timer"
               label="Duration"
               value={getParkingSessionElapsedDisplay(session, nowMs)}
             />
-          </View>
-          {operationError ? <ErrorNotice message={operationError} /> : null}
+          </Card>
+          {operationError ? (
+            <ErrorNotice message={operationError} styles={styles} />
+          ) : null}
           <View style={styles.actions}>
             <AppButton
-              label="DONE"
+              label="Done"
+              leadingIcon="check"
               onPress={() =>
                 runTransition(
                   resetSession,
@@ -688,20 +918,25 @@ export function ParkingSessionScreen() {
         </>
       );
       break;
-    }
 
     case 'failed':
       body = (
         <>
-          <Text style={styles.statusTitle}>Parking request failed</Text>
-          <Text style={styles.statusText}>
-            No parking state was confirmed. Clear this request to return home.
-          </Text>
-          <SessionSnapshot session={session} />
-          {operationError ? <ErrorNotice message={operationError} /> : null}
+          <StateIntro
+            badge="REQUEST FAILED"
+            badgeTone="danger"
+            description="No parking state was confirmed. Clear this request to return home."
+            styles={styles}
+            title="Parking request failed"
+          />
+          <SessionSnapshot session={session} styles={styles} />
+          {operationError ? (
+            <ErrorNotice message={operationError} styles={styles} />
+          ) : null}
           <View style={styles.actions}>
             <AppButton
-              label="RETURN HOME"
+              label="Return home"
+              leadingIcon="back"
               onPress={() =>
                 runTransition(
                   resetSession,
@@ -719,219 +954,198 @@ export function ParkingSessionScreen() {
     <ScrollView
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
+      style={styles.scroll}
     >
-      <View style={styles.content}>
-        {showSimulation ? <SimulationBanner /> : null}
+      <View
+        style={[
+          styles.content,
+          width <= 340 ? styles.contentCompact : null,
+        ]}
+      >
+        <AppHeader
+          subtitle="Parking session"
+          title="Parking Bitola"
+          variant="product"
+        />
+        {showSimulation ? (
+          <SimulationBanner session={session} styles={styles} />
+        ) : null}
         {body}
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    alignSelf: 'center',
-    maxWidth: 680,
-    paddingBottom: 36,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    width: '100%',
-  },
-  simulationBanner: {
-    backgroundColor: '#FFF4D6',
-    borderColor: '#E6A817',
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 22,
-    padding: 15,
-  },
-  simulationTitle: {
-    color: '#6D4A00',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.55,
-  },
-  simulationText: {
-    color: '#765D27',
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 4,
-  },
-  statusTitle: {
-    color: '#132E47',
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: -0.7,
-    lineHeight: 36,
-  },
-  statusText: {
-    color: '#52697F',
-    fontSize: 16,
-    lineHeight: 23,
-    marginBottom: 20,
-    marginTop: 8,
-  },
-  activeEyebrow: {
-    color: '#176B49',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  snapshotCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DDE5EC',
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 17,
-  },
-  summaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DDE5EC',
-    borderRadius: 16,
-    borderWidth: 1,
-    marginTop: 12,
-    paddingHorizontal: 17,
-  },
-  snapshotRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 16,
-    justifyContent: 'space-between',
-    minHeight: 58,
-    paddingVertical: 10,
-  },
-  snapshotLabel: {
-    color: '#667085',
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  snapshotValue: {
-    color: '#17324D',
-    flexShrink: 1,
-    fontSize: 17,
-    fontWeight: '800',
-    textAlign: 'right',
-  },
-  divider: {
-    backgroundColor: '#E8EDF2',
-    height: 1,
-  },
-  timeGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  timeCard: {
-    backgroundColor: '#EAF3F0',
-    borderColor: '#C4DDD4',
-    borderRadius: 14,
-    borderWidth: 1,
-    flex: 1,
-    padding: 15,
-  },
-  timeLabel: {
-    color: '#4C6A5F',
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  timeValue: {
-    color: '#176B49',
-    fontSize: 20,
-    fontVariant: ['tabular-nums'],
-    fontWeight: '900',
-    marginTop: 5,
-  },
-  reminderCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DDE5EC',
-    borderRadius: 16,
-    borderWidth: 1,
-    marginTop: 12,
-    padding: 16,
-  },
-  reminderHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 16,
-    justifyContent: 'space-between',
-  },
-  reminderHeadingGroup: {
-    flex: 1,
-  },
-  reminderTitle: {
-    color: '#17324D',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  reminderStatusRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 7,
-    marginTop: 4,
-  },
-  reminderStatus: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  reminderStatusPositive: {
-    color: '#176B49',
-  },
-  reminderStatusNeutral: {
-    color: '#667085',
-  },
-  reminderStatusWarning: {
-    color: '#9A6700',
-  },
-  reminderStatusError: {
-    color: '#B42318',
-  },
-  reminderReason: {
-    color: '#52697F',
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 10,
-  },
-  reminderAction: {
-    marginTop: 10,
-  },
-  errorNotice: {
-    backgroundColor: '#FFF5F4',
-    borderColor: '#F6C7C3',
-    borderRadius: 14,
-    borderWidth: 1,
-    marginTop: 14,
-    padding: 14,
-  },
-  errorTitle: {
-    color: '#B42318',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  errorText: {
-    color: '#8A2E26',
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 4,
-  },
-  processingRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 18,
-  },
-  processingText: {
-    color: '#52697F',
-    fontSize: 14,
-  },
-  actions: {
-    gap: 10,
-    marginTop: 20,
-  },
-});
+function createStyles(theme: AppTheme) {
+  return StyleSheet.create({
+    scroll: {
+      backgroundColor: theme.colors.background,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    content: {
+      alignSelf: 'center',
+      gap: theme.spacing.lg,
+      maxWidth: theme.layout.maxContentWidth,
+      paddingBottom: theme.spacing.xxxl,
+      paddingHorizontal: theme.layout.screenPadding,
+      paddingTop: theme.spacing.md,
+      width: '100%',
+    },
+    contentCompact: {
+      paddingHorizontal: theme.layout.compactScreenPadding,
+    },
+    divider: {
+      backgroundColor: theme.colors.border,
+      height: StyleSheet.hairlineWidth,
+      marginHorizontal: theme.spacing.md,
+    },
+    infoRow: {
+      justifyContent: 'center',
+      minHeight: theme.touchTargets.comfortable,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+    },
+    simulationHeading: {
+      alignItems: 'flex-start',
+    },
+    simulationTitle: {
+      ...theme.typography.heading,
+      color: theme.colors.developmentText,
+      marginTop: theme.spacing.sm,
+    },
+    simulationText: {
+      ...theme.typography.caption,
+      color: theme.colors.developmentText,
+      marginTop: theme.spacing.xxs,
+    },
+    stateIntro: {
+      alignItems: 'flex-start',
+      gap: theme.spacing.xs,
+    },
+    badgeRow: {
+      alignItems: 'flex-start',
+    },
+    stateTitle: {
+      ...theme.typography.titleLarge,
+      color: theme.colors.text,
+    },
+    stateDescription: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+    },
+    noticeTitle: {
+      ...theme.typography.label,
+      color: theme.colors.warningText,
+    },
+    noticeText: {
+      ...theme.typography.caption,
+      color: theme.colors.warningText,
+      marginTop: theme.spacing.xxs,
+    },
+    errorTitle: {
+      ...theme.typography.label,
+      color: theme.colors.dangerText,
+    },
+    errorText: {
+      ...theme.typography.caption,
+      color: theme.colors.dangerText,
+      marginTop: theme.spacing.xxs,
+    },
+    actions: {
+      gap: theme.spacing.xs,
+    },
+    activeStatusRow: {
+      alignItems: 'flex-start',
+    },
+    elapsedLabel: {
+      ...theme.typography.overline,
+      color: theme.colors.successText,
+      marginTop: theme.spacing.xl,
+    },
+    elapsedValue: {
+      ...theme.typography.number,
+      alignSelf: 'stretch',
+      color: theme.colors.successText,
+      flexShrink: 1,
+      marginTop: theme.spacing.xxs,
+      minWidth: 0,
+    },
+    activeDivider: {
+      backgroundColor: theme.colors.success,
+      height: StyleSheet.hairlineWidth,
+      marginVertical: theme.spacing.lg,
+      opacity: theme.isDark ? 0.5 : 0.28,
+    },
+    activeFacts: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.lg,
+    },
+    activeFact: {
+      flexBasis: 120,
+      flexGrow: 1,
+      minWidth: 0,
+    },
+    activeFactLabel: {
+      ...theme.typography.overline,
+      color: theme.colors.successText,
+    },
+    activeFactValue: {
+      ...theme.typography.heading,
+      color: theme.colors.text,
+      flexShrink: 1,
+      marginTop: theme.spacing.xxs,
+    },
+    reminderHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+      justifyContent: 'space-between',
+    },
+    reminderHeadingGroup: {
+      flexBasis: 170,
+      flexGrow: 1,
+      minWidth: 0,
+    },
+    reminderTitle: {
+      ...theme.typography.heading,
+      color: theme.colors.text,
+    },
+    reminderStatusRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.xs,
+    },
+    reminderReason: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.sm,
+    },
+    reminderAction: {
+      marginTop: theme.spacing.sm,
+    },
+    processingRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+    },
+    processingCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    processingTitle: {
+      ...theme.typography.label,
+      color: theme.colors.accentText,
+    },
+    processingText: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xxs,
+    },
+  });
+}
