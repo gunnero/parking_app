@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -87,6 +88,7 @@ export function HomeScreen({
   );
   const [startError, setStartError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
 
   const hasCoordinates = latitude !== null && longitude !== null;
   const detectedZone = useMemo(
@@ -308,7 +310,7 @@ export function HomeScreen({
           variant="appearance"
         />
 
-        <Card elevated padding="spacious">
+        <Card elevated padding={isCompact ? 'regular' : 'spacious'}>
           <View accessibilityLiveRegion="polite" style={styles.zoneHero}>
             {detectedZone ? (
               <>
@@ -344,14 +346,13 @@ export function HomeScreen({
                     <AppIcon
                       color={theme.colors.developmentText}
                       name="parking"
-                      size={24}
+                      size={isCompact ? 20 : 24}
                     />
                   </View>
                   <View style={styles.zoneRule} />
                 </View>
                 <Text style={styles.zoneDescription}>
-                  You are in a simulated zone. No real parking request will be
-                  sent to an operator.
+                  Synthetic development boundary for app testing.
                 </Text>
               </>
             ) : (
@@ -465,7 +466,7 @@ export function HomeScreen({
           </Card>
         ) : null}
 
-        <Card elevated>
+        <Card elevated padding="compact">
           <View
             accessibilityLabel={
               hasHydrated
@@ -504,61 +505,28 @@ export function HomeScreen({
           </View>
         </Card>
 
-        <Card padding="none">
+        <View style={styles.primaryAction}>
           <View
             style={[
-              styles.statusGrid,
-              shouldStackStatus && styles.statusGridCompact,
+              styles.primaryButtonFrame,
+              {
+                backgroundColor: canPrepareSession
+                  ? theme.colors.accent
+                  : theme.colors.disabled,
+              },
+              theme.shadows.medium,
             ]}
           >
-            <View style={styles.statusBlock}>
-              <View style={styles.statusHeading}>
-                <AppIcon
-                  color={theme.colors.accentText}
-                  name="navigation"
-                  size={20}
-                />
-                <Text style={styles.statusLabel}>GPS status</Text>
-              </View>
-              <StatusBadge label={gpsValue} tone={gpsTone} />
-              <Text style={styles.statusDetail}>{gpsDetail}</Text>
-            </View>
-            <View
-              style={[
-                styles.statusDivider,
-                shouldStackStatus && styles.statusDividerCompact,
-              ]}
+            <AppButton
+              accessibilityHint="Prepares a simulated parking session for the detected development zone"
+              accessibilityLabel="Start parking"
+              disabled={!canPrepareSession}
+              label="START PARKING"
+              leadingIcon="parking"
+              loading={isStarting}
+              onPress={() => void handleStartParking()}
             />
-            <View style={styles.statusBlock}>
-              <View style={styles.statusHeading}>
-                <AppIcon
-                  color={theme.colors.accentText}
-                  name="notification-active"
-                  size={20}
-                />
-                <Text style={styles.statusLabel}>Parking reminder</Text>
-              </View>
-              <StatusBadge label={reminderValue} tone={reminderTone} />
-              <Text style={styles.statusDetail}>
-                {reminderHasHydrated
-                  ? reminderEnabled
-                    ? 'Enabled for active parking sessions.'
-                    : 'Disabled in reminder settings.'
-                  : 'Reading your saved preference.'}
-              </Text>
-            </View>
           </View>
-        </Card>
-
-        <View style={styles.primaryAction}>
-          <AppButton
-            accessibilityHint="Prepares a simulated parking session for the detected development zone"
-            disabled={!canPrepareSession}
-            label="START PARKING"
-            leadingIcon="parking"
-            loading={isStarting}
-            onPress={() => void handleStartParking()}
-          />
 
           {startUnavailable ? (
             <Text style={styles.startUnavailable}>{startUnavailable}</Text>
@@ -584,46 +552,191 @@ export function HomeScreen({
               </Text>
             </View>
           ) : null}
-
-          {detectedZone && defaultVehicle && smsPreview ? (
-            <Card padding="compact" tone="development">
-              <InfoRow
-                detail="Generated for the simulated parking-session flow."
-                icon="sms"
-                label="SMS preview"
-                tone="development"
-                value={smsPreview}
-              />
-            </Card>
-          ) : null}
         </View>
 
-        <View style={styles.actions}>
-          {!hasCoordinates || detectedZone ? (
-            <AppButton
-              accessibilityHint="Requests foreground permission if needed and reads the current GPS position"
-              compact
-              label="Refresh location"
-              leadingIcon="refresh"
-              loading={isRefreshing}
-              onPress={handleRefreshLocation}
-              variant="secondary"
+        <Card padding="none">
+          <View
+            accessibilityLiveRegion="polite"
+            style={[
+              styles.statusGrid,
+              shouldStackStatus && styles.statusGridCompact,
+            ]}
+          >
+            <View
+              accessibilityLabel={`GPS status. ${gpsValue}. ${gpsDetail}`}
+              accessible
+              style={styles.statusBlock}
+            >
+              <View
+                style={[
+                  styles.statusIcon,
+                  { backgroundColor: getStatusTone(gpsTone, theme).surface },
+                ]}
+              >
+                <AppIcon
+                  color={getStatusTone(gpsTone, theme).foreground}
+                  name="navigation"
+                  size={20}
+                />
+              </View>
+              <View style={styles.statusCopy}>
+                <Text style={styles.statusLabel}>{gpsValue}</Text>
+                <Text numberOfLines={2} style={styles.statusDetail}>
+                  {hasCoordinates && accuracy !== null
+                    ? `About ${Math.max(1, Math.round(accuracy))} m accuracy`
+                    : gpsDetail}
+                </Text>
+              </View>
+            </View>
+            <View
+              style={[
+                styles.statusDivider,
+                shouldStackStatus && styles.statusDividerCompact,
+              ]}
             />
-          ) : null}
-          <AppButton
-            accessibilityHint="Opens the local vehicle list"
-            compact
-            label="Manage vehicles"
-            leadingIcon="car"
-            onPress={onManageVehicles}
-            variant="ghost"
-          />
-        </View>
+            <View
+              accessibilityLabel={`Parking reminder. ${reminderValue}. ${
+                reminderHasHydrated
+                  ? reminderEnabled
+                    ? 'Enabled for active parking sessions.'
+                    : 'Disabled in reminder settings.'
+                  : 'Reading your saved preference.'
+              }`}
+              accessible
+              style={styles.statusBlock}
+            >
+              <View
+                style={[
+                  styles.statusIcon,
+                  {
+                    backgroundColor: getStatusTone(reminderTone, theme)
+                      .surface,
+                  },
+                ]}
+              >
+                <AppIcon
+                  color={getStatusTone(reminderTone, theme).foreground}
+                  name="notification-active"
+                  size={20}
+                />
+              </View>
+              <View style={styles.statusCopy}>
+                <Text style={styles.statusLabel}>Parking reminder</Text>
+                <Text numberOfLines={2} style={styles.statusDetail}>
+                  {!reminderHasHydrated
+                    ? 'Checking preference'
+                    : reminderEnabled
+                      ? 'On'
+                      : 'Off'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Card>
 
-        <Text style={styles.dataNotice}>
-          TEST-A1 and TEST-A2 use synthetic development boundaries. They are
-          not verified or official Bitola parking zones.
-        </Text>
+        <Card padding="none">
+          <Pressable
+            accessibilityHint="Shows GPS, reminder and development information"
+            accessibilityLabel={
+              isDetailsExpanded
+                ? 'Hide parking details'
+                : 'Show parking details'
+            }
+            accessibilityRole="button"
+            accessibilityState={{ expanded: isDetailsExpanded }}
+            onPress={() => setIsDetailsExpanded((isExpanded) => !isExpanded)}
+            style={({ pressed }) => [
+              styles.detailsToggle,
+              pressed && { backgroundColor: theme.colors.surfacePressed },
+            ]}
+          >
+            <View style={styles.detailsHeading}>
+              <Text style={styles.detailsTitle}>Details</Text>
+              <Text style={styles.detailsSubtitle}>
+                GPS, reminder and development information
+              </Text>
+            </View>
+            <AppIcon
+              color={theme.colors.accentText}
+              name="chevron-right"
+              size={20}
+              style={isDetailsExpanded ? styles.detailsChevronExpanded : null}
+            />
+          </Pressable>
+
+          {isDetailsExpanded ? (
+            <View style={styles.detailsBody}>
+              <InfoRow
+                detail={gpsDetail}
+                icon="navigation"
+                label="GPS detail"
+                tone={gpsTone}
+                value={gpsValue}
+              />
+              <View style={styles.detailsDivider} />
+              <InfoRow
+                detail={
+                  reminderHasHydrated
+                    ? reminderEnabled
+                      ? 'Enabled for active parking sessions.'
+                      : 'Disabled in reminder settings.'
+                    : 'Reading your saved preference.'
+                }
+                icon="notification-active"
+                label="Parking reminder"
+                tone={reminderTone}
+                value={reminderValue}
+              />
+
+              {detectedZone && defaultVehicle && smsPreview ? (
+                <>
+                  <View style={styles.detailsDivider} />
+                  <InfoRow
+                    detail="Generated for the simulated parking-session flow."
+                    icon="sms"
+                    label="SMS preview"
+                    tone="development"
+                    value={smsPreview}
+                  />
+                </>
+              ) : null}
+
+              <View style={styles.detailsActions}>
+                {!hasCoordinates || detectedZone ? (
+                  <AppButton
+                    accessibilityHint="Requests foreground permission if needed and reads the current GPS position"
+                    compact
+                    label="Refresh location"
+                    leadingIcon="refresh"
+                    loading={isRefreshing}
+                    onPress={handleRefreshLocation}
+                    variant="secondary"
+                  />
+                ) : null}
+                <AppButton
+                  accessibilityHint="Opens the local vehicle list"
+                  compact
+                  label="Manage vehicles"
+                  leadingIcon="car"
+                  onPress={onManageVehicles}
+                  variant="ghost"
+                />
+              </View>
+
+              <View style={styles.dataNoticeRow}>
+                <AppIcon
+                  color={theme.colors.developmentText}
+                  name="development"
+                  size={18}
+                />
+                <Text style={styles.dataNotice}>
+                  TEST-A1 and TEST-A2 use synthetic development boundaries.
+                  They are not verified or official Bitola parking zones.
+                </Text>
+              </View>
+            </View>
+          ) : null}
+        </Card>
       </View>
     </ScrollView>
   );
@@ -636,7 +749,7 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
     },
     content: {
       alignSelf: 'center',
-      gap: theme.spacing.xl,
+      gap: isCompact ? theme.spacing.md : theme.spacing.lg,
       maxWidth: theme.layout.maxContentWidth,
       paddingBottom: theme.spacing.xxl,
       paddingHorizontal: theme.layout.screenPadding,
@@ -648,7 +761,7 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
     },
     zoneHero: {
       alignItems: 'center',
-      gap: theme.spacing.sm,
+      gap: isCompact ? theme.spacing.xs : theme.spacing.sm,
       minWidth: 0,
     },
     zoneBadgeWrap: {
@@ -664,8 +777,8 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
     zoneCode: {
       ...theme.typography.number,
       color: theme.colors.developmentText,
-      fontSize: isCompact ? 56 : 64,
-      lineHeight: isCompact ? 64 : 72,
+      fontSize: isCompact ? 52 : 60,
+      lineHeight: isCompact ? 60 : 68,
       textAlign: 'center',
       width: '100%',
     },
@@ -675,7 +788,7 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
       textAlign: 'center',
     },
     zoneDescription: {
-      ...theme.typography.body,
+      ...(isCompact ? theme.typography.caption : theme.typography.body),
       color: theme.colors.textSecondary,
       maxWidth: '92%',
       textAlign: 'center',
@@ -697,9 +810,13 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
       borderColor: theme.colors.development,
       borderRadius: theme.radii.full,
       borderWidth: 1,
-      height: theme.touchTargets.minimum,
+      height: isCompact
+        ? theme.touchTargets.minimum - theme.spacing.xs
+        : theme.touchTargets.minimum,
       justifyContent: 'center',
-      width: theme.touchTargets.minimum,
+      width: isCompact
+        ? theme.touchTargets.minimum - theme.spacing.xs
+        : theme.touchTargets.minimum,
     },
     errorText: {
       ...theme.typography.caption,
@@ -749,20 +866,28 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
       flexDirection: 'column',
     },
     statusBlock: {
-      flex: 1,
-      gap: theme.spacing.xs,
-      minWidth: 0,
-      padding: theme.spacing.md,
-    },
-    statusHeading: {
       alignItems: 'center',
+      flex: 1,
       flexDirection: 'row',
-      gap: theme.spacing.xs,
+      gap: theme.spacing.sm,
+      minWidth: 0,
+      padding: theme.spacing.sm,
+    },
+    statusIcon: {
+      alignItems: 'center',
+      borderRadius: theme.radii.full,
+      flexShrink: 0,
+      height: theme.touchTargets.minimum,
+      justifyContent: 'center',
+      width: theme.touchTargets.minimum,
+    },
+    statusCopy: {
+      flex: 1,
+      minWidth: 0,
     },
     statusLabel: {
       ...theme.typography.label,
       color: theme.colors.text,
-      flex: 1,
     },
     statusDetail: {
       ...theme.typography.caption,
@@ -779,6 +904,10 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
     },
     primaryAction: {
       gap: theme.spacing.sm,
+    },
+    primaryButtonFrame: {
+      borderRadius: theme.radii.lg,
+      paddingVertical: theme.spacing.xxs,
     },
     startUnavailable: {
       ...theme.typography.caption,
@@ -799,14 +928,91 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
       flexShrink: 1,
       textAlign: 'center',
     },
-    actions: {
+    detailsToggle: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      minHeight: theme.touchTargets.minimum,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+    },
+    detailsHeading: {
+      flex: 1,
+      minWidth: 0,
+    },
+    detailsTitle: {
+      ...theme.typography.label,
+      color: theme.colors.text,
+    },
+    detailsSubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xxs,
+    },
+    detailsChevronExpanded: {
+      transform: [{ rotate: '90deg' }],
+    },
+    detailsBody: {
+      borderTopColor: theme.colors.border,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingBottom: theme.spacing.md,
+    },
+    detailsDivider: {
+      backgroundColor: theme.colors.border,
+      height: StyleSheet.hairlineWidth,
+      marginHorizontal: theme.spacing.md,
+    },
+    detailsActions: {
       gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.md,
+      paddingTop: theme.spacing.sm,
+    },
+    dataNoticeRow: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.md,
+      paddingTop: theme.spacing.md,
     },
     dataNotice: {
       ...theme.typography.caption,
       color: theme.colors.textMuted,
-      paddingHorizontal: theme.spacing.md,
-      textAlign: 'center',
+      flex: 1,
+      minWidth: 0,
     },
   });
+}
+
+function getStatusTone(
+  tone: 'neutral' | 'accent' | 'success' | 'warning' | 'danger',
+  theme: AppTheme,
+) {
+  switch (tone) {
+    case 'accent':
+      return {
+        foreground: theme.colors.accentText,
+        surface: theme.colors.accentSurface,
+      };
+    case 'success':
+      return {
+        foreground: theme.colors.successText,
+        surface: theme.colors.successSurface,
+      };
+    case 'warning':
+      return {
+        foreground: theme.colors.warningText,
+        surface: theme.colors.warningSurface,
+      };
+    case 'danger':
+      return {
+        foreground: theme.colors.dangerText,
+        surface: theme.colors.dangerSurface,
+      };
+    case 'neutral':
+    default:
+      return {
+        foreground: theme.colors.textSecondary,
+        surface: theme.colors.surfaceMuted,
+      };
+  }
 }

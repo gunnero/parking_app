@@ -279,6 +279,9 @@ function ParkingReminderCard({
         runtime.status === 'storage-error'
       ? runtime.reason
       : 'Departure reminders are off.';
+  const showReason =
+    reminderError !== null ||
+    (runtime.status !== 'monitoring' && runtime.status !== 'disabled');
 
   const explainAndSetUp = () => {
     Alert.alert(
@@ -335,7 +338,9 @@ function ParkingReminderCard({
           value={enabled}
         />
       </View>
-      <Text style={styles.reminderReason}>{reason}</Text>
+      {showReason ? (
+        <Text style={styles.reminderReason}>{reason}</Text>
+      ) : null}
       {enabled && (canRequestLocation || canRequestNotifications) ? (
         <View style={styles.reminderAction}>
           <AppButton
@@ -398,13 +403,24 @@ function ActiveSessionHero({
   const elapsed = getParkingSessionElapsedDisplay(session, nowMs);
 
   return (
-    <Card elevated padding="spacious" tone="success">
+    <Card elevated padding="regular">
       <View style={styles.activeStatusRow}>
-        <StatusBadge
-          label={isSimulation ? 'SIMULATED SESSION' : 'PARKING ACTIVE'}
-          tone={isSimulation ? 'development' : 'success'}
-        />
+        <StatusBadge label="PARKING ACTIVE" tone="success" />
+        {isSimulation ? (
+          <StatusBadge label="DEVELOPMENT MODE" tone="development" />
+        ) : null}
       </View>
+      <View style={styles.activeContext}>
+        <View style={styles.activeFact}>
+          <Text style={styles.activeFactLabel}>Zone</Text>
+          <Text style={styles.activeFactValue}>{session.zoneCode}</Text>
+        </View>
+        <View style={styles.activeFact}>
+          <Text style={styles.activeFactLabel}>Vehicle</Text>
+          <Text style={styles.activeFactValue}>{session.plate}</Text>
+        </View>
+      </View>
+      <View style={styles.activeDivider} />
       <Text style={styles.elapsedLabel}>Elapsed time</Text>
       <Text
         accessibilityLabel={`Elapsed time ${elapsed}`}
@@ -416,22 +432,18 @@ function ActiveSessionHero({
         {elapsed}
       </Text>
       <View style={styles.activeDivider} />
-      <View style={styles.activeFacts}>
-        <View style={styles.activeFact}>
-          <Text style={styles.activeFactLabel}>Zone</Text>
-          <Text style={styles.activeFactValue}>{session.zoneCode}</Text>
-        </View>
-        <View style={styles.activeFact}>
-          <Text style={styles.activeFactLabel}>Vehicle</Text>
-          <Text style={styles.activeFactValue}>{session.plate}</Text>
-        </View>
-        <View style={styles.activeFact}>
-          <Text style={styles.activeFactLabel}>Started</Text>
-          <Text style={styles.activeFactValue}>
-            {formatClockTime(session.startedAt)}
-          </Text>
-        </View>
+      <View style={styles.activeStarted}>
+        <Text style={styles.activeFactLabel}>Started</Text>
+        <Text style={styles.activeStartedValue}>
+          {formatClockTime(session.startedAt)}
+        </Text>
       </View>
+      {isSimulation ? (
+        <Text style={styles.activeSimulationText}>
+          Simulated test session. {session.zoneCode} is not an official Bitola
+          parking zone, and no SMS was opened or sent.
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -967,7 +979,7 @@ export function ParkingSessionScreen() {
           title="Parking Bitola"
           variant="product"
         />
-        {showSimulation ? (
+        {showSimulation && session.status !== 'active' ? (
           <SimulationBanner session={session} styles={styles} />
         ) : null}
         {body}
@@ -1058,11 +1070,18 @@ function createStyles(theme: AppTheme) {
     },
     activeStatusRow: {
       alignItems: 'flex-start',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.xs,
+    },
+    activeContext: {
+      flexDirection: 'row',
+      gap: theme.spacing.lg,
+      marginTop: theme.spacing.lg,
     },
     elapsedLabel: {
       ...theme.typography.overline,
       color: theme.colors.successText,
-      marginTop: theme.spacing.xl,
     },
     elapsedValue: {
       ...theme.typography.number,
@@ -1073,19 +1092,12 @@ function createStyles(theme: AppTheme) {
       minWidth: 0,
     },
     activeDivider: {
-      backgroundColor: theme.colors.success,
+      backgroundColor: theme.colors.border,
       height: StyleSheet.hairlineWidth,
-      marginVertical: theme.spacing.lg,
-      opacity: theme.isDark ? 0.5 : 0.28,
-    },
-    activeFacts: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: theme.spacing.lg,
+      marginVertical: theme.spacing.md,
     },
     activeFact: {
-      flexBasis: 120,
-      flexGrow: 1,
+      flex: 1,
       minWidth: 0,
     },
     activeFactLabel: {
@@ -1098,16 +1110,32 @@ function createStyles(theme: AppTheme) {
       flexShrink: 1,
       marginTop: theme.spacing.xxs,
     },
+    activeStarted: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    activeStartedValue: {
+      ...theme.typography.bodyMedium,
+      color: theme.colors.text,
+    },
+    activeSimulationText: {
+      ...theme.typography.caption,
+      color: theme.colors.developmentText,
+      marginTop: theme.spacing.md,
+    },
     reminderHeader: {
       alignItems: 'center',
       flexDirection: 'row',
-      flexWrap: 'wrap',
       gap: theme.spacing.sm,
       justifyContent: 'space-between',
     },
     reminderHeadingGroup: {
-      flexBasis: 170,
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
       flexGrow: 1,
+      gap: theme.spacing.xs,
       minWidth: 0,
     },
     reminderTitle: {
@@ -1119,7 +1147,6 @@ function createStyles(theme: AppTheme) {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: theme.spacing.xs,
-      marginTop: theme.spacing.xs,
     },
     reminderReason: {
       ...theme.typography.caption,
