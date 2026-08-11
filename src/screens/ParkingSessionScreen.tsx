@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,10 +24,18 @@ import {
   type ParkingSessionSmsFlowResult,
 } from '../services/parkingSessionSmsFlow';
 import type { ParkingReminderRuntimeStatus } from '../services/parkingReminderController';
+import { useParkingHistoryStore } from '../stores/parkingHistoryStore';
 import { useParkingReminderStore } from '../stores/parkingReminderStore';
 import { useParkingSessionStore } from '../stores/parkingSessionStore';
 import { type AppTheme, useAppTheme } from '../theme';
+import type { ParkingHistoryRecord } from '../types/parkingHistory';
 import type { ParkingSession } from '../types/parkingSession';
+import {
+  deriveParkingDurationSeconds,
+  formatParkingDuration,
+  formatParkingTime,
+} from '../utils/dateTime';
+import { getTrustedParkingHistoryFinalCost } from '../utils/parkingHistory';
 import { getParkingSessionElapsedDisplay } from '../utils/parkingSessionState';
 
 function formatClockTime(value: string | null): string {
@@ -45,6 +53,29 @@ function formatClockTime(value: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatTrustedFinalCost(
+  record: ParkingHistoryRecord | null,
+): string | null {
+  if (!record) {
+    return null;
+  }
+
+  const cost = getTrustedParkingHistoryFinalCost(record);
+
+  if (!cost) {
+    return null;
+  }
+
+  try {
+    return new Intl.NumberFormat(undefined, {
+      currency: cost.currency,
+      style: 'currency',
+    }).format(cost.amount);
+  } catch {
+    return `${cost.amount.toLocaleString()} ${cost.currency}`;
+  }
 }
 
 function requestFailureMessage(
@@ -448,7 +479,13 @@ function ActiveSessionHero({
   );
 }
 
-export function ParkingSessionScreen() {
+export type ParkingSessionScreenProps = {
+  onViewHistory: () => void;
+};
+
+export function ParkingSessionScreen({
+  onViewHistory,
+}: ParkingSessionScreenProps) {
   const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -491,7 +528,25 @@ export function ParkingSessionScreen() {
   const finishSmsFlow = useParkingSessionStore(
     (state) => state.finishSmsFlow,
   );
+  const appendCompletedSession = useParkingHistoryStore(
+    (state) => state.appendCompletedSession,
+  );
+  const historyOperationError = useParkingHistoryStore(
+    (state) => state.operationError,
+  );
+  const clearHistoryOperationError = useParkingHistoryStore(
+    (state) => state.clearOperationError,
+  );
+  const persistedHistoryRecord = useParkingHistoryStore((state) =>
+    session
+      ? state.records.find((record) => record.sessionId === session.id) ?? null
+      : null,
+  );
   const [nowMs, setNowMs] = useState(Date.now());
+  const [archivedRecord, setArchivedRecord] =
+    useState<ParkingHistoryRecord | null>(null);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const archiveInFlight = useRef(false);
 
   useEffect(() => {
     if (session?.status !== 'active') {
@@ -509,6 +564,20 @@ export function ParkingSessionScreen() {
   }
 
   const showSimulation = session.deliveryMode === 'simulation';
+  const receiptRecord =
+    archivedRecord?.sessionId === session.id
+      ? archivedRecord
+      : persistedHistoryRecord;
+  const trustedFinalCost = formatTrustedFinalCost(receiptRecord);
+  const visibleOperationError = operationError ?? historyOperationError;
+  const receiptStartedAt = receiptRecord?.startedAt ?? session.startedAt;
+  const receiptStoppedAt = receiptRecord?.stoppedAt ?? session.stoppedAt;
+  const derivedReceiptDuration =
+    receiptStartedAt && receiptStoppedAt
+      ? deriveParkingDurationSeconds(receiptStartedAt, receiptStoppedAt)
+      : null;
+  const receiptDurationSeconds =
+    receiptRecord?.durationSeconds ?? derivedReceiptDuration;
 
   const storeTransitionError = (
     result: { success: boolean; error?: string },
@@ -614,6 +683,82 @@ export function ParkingSessionScreen() {
       cancelPendingSession(),
       'The pending parking session could not be cancelled.',
     );
+  };
+
+  const archiveCompletedSession = async (
+    completedSession: ParkingSession,
+  ): Promise<ParkingHistoryRecord | null> => {
+    if (archiveInFlight.current || completedSession.status !== 'completed') {
+      return null;
+    }
+
+    archiveInFlight.current = true;
+    setIsArchiving(true);
+    clearOperationError();
+    clearHistoryOperationError();
+
+    try {
+      const archiveResult = await appendCompletedSession(completedSession);
+
+      if (!archiveResult.success) {
+        setOperationError(archiveResult.error);
+        return null;
+      }
+
+      setArchivedRecord(archiveResult.record);
+      return archiveResult.record;
+    } finally {
+      archiveInFlight.current = false;
+      setIsArchiving(false);
+    }
+  };
+
+  const completeStopAndArchive = async () => {
+    if (archiveInFlight.current) {
+      return;
+    }
+
+    clearOperationError();
+    clearHistoryOperationError();
+    const completion = completeSessionManually();
+
+    if (!completion.success) {
+      setOperationError(
+        completion.error || 'The parking session could not be completed.',
+      );
+      return;
+    }
+
+    if (!completion.session || completion.session.status !== 'completed') {
+      setOperationError('The completed parking session could not be restored.');
+      return;
+    }
+
+    await archiveCompletedSession(completion.session);
+  };
+
+  const finishCompletedSession = async () => {
+    const record = await archiveCompletedSession(session);
+
+    if (!record) {
+      return;
+    }
+
+    const resetResult = resetSession();
+
+    if (!resetResult.success) {
+      setOperationError(
+        resetResult.error || 'The completed session could not be cleared.',
+      );
+    }
+  };
+
+  const openHistoryFromCompletedSession = async () => {
+    const record = await archiveCompletedSession(session);
+
+    if (record) {
+      onViewHistory();
+    }
   };
 
   let body: ReactNode;
@@ -847,12 +992,7 @@ export function ParkingSessionScreen() {
                   : 'Confirm parking stopped'
               }
               leadingIcon="check"
-              onPress={() =>
-                runTransition(
-                  completeSessionManually,
-                  'The parking session could not be completed.',
-                )
-              }
+              onPress={() => void completeStopAndArchive()}
             />
             <AppButton
               label="Return to active parking"
@@ -874,8 +1014,8 @@ export function ParkingSessionScreen() {
       body = (
         <>
           <StateIntro
-            badge="SESSION COMPLETE"
-            badgeTone="success"
+            badge={showSimulation ? 'SIMULATED SESSION' : 'SESSION COMPLETE'}
+            badgeTone={showSimulation ? 'development' : 'success'}
             description={
               showSimulation
                 ? 'This simulated development session is complete.'
@@ -886,45 +1026,73 @@ export function ParkingSessionScreen() {
           />
           <Card padding="none" tone="success">
             <InfoRow
+              detail={session.zoneName}
               icon="parking"
               label="Zone"
               value={session.zoneCode}
             />
             <View style={styles.divider} />
-            <InfoRow icon="car" label="Vehicle" value={session.plate} />
+            <InfoRow
+              detail={session.vehicleNickname}
+              icon="car"
+              label="Vehicle"
+              value={session.plate}
+            />
             <View style={styles.divider} />
             <InfoRow
               icon="clock"
               label="Started"
-              value={formatClockTime(session.startedAt)}
+              value={
+                receiptStartedAt ? formatParkingTime(receiptStartedAt) : '—'
+              }
             />
             <View style={styles.divider} />
             <InfoRow
               icon="success"
               label="Stopped"
               tone="success"
-              value={formatClockTime(session.stoppedAt)}
+              value={
+                receiptStoppedAt ? formatParkingTime(receiptStoppedAt) : '—'
+              }
             />
             <View style={styles.divider} />
             <InfoRow
               icon="timer"
               label="Duration"
-              value={getParkingSessionElapsedDisplay(session, nowMs)}
+              value={
+                receiptDurationSeconds === null
+                  ? '—'
+                  : formatParkingDuration(receiptDurationSeconds)
+              }
             />
+            {trustedFinalCost ? (
+              <>
+                <View style={styles.divider} />
+                <InfoRow
+                  icon="success"
+                  label="Final cost"
+                  tone="success"
+                  value={trustedFinalCost}
+                />
+              </>
+            ) : null}
           </Card>
-          {operationError ? (
-            <ErrorNotice message={operationError} styles={styles} />
+          {visibleOperationError ? (
+            <ErrorNotice message={visibleOperationError} styles={styles} />
           ) : null}
           <View style={styles.actions}>
             <AppButton
-              label="Done"
+              label="DONE"
               leadingIcon="check"
-              onPress={() =>
-                runTransition(
-                  resetSession,
-                  'The completed session could not be cleared.',
-                )
-              }
+              loading={isArchiving}
+              onPress={() => void finishCompletedSession()}
+            />
+            <AppButton
+              disabled={isArchiving}
+              label="VIEW HISTORY"
+              leadingIcon="clock"
+              onPress={() => void openHistoryFromCompletedSession()}
+              variant="secondary"
             />
           </View>
         </>

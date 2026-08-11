@@ -20,14 +20,22 @@ import {
   isVisualPreviewEnabled,
 } from './src/dev';
 import { AppearanceScreen } from './src/screens/AppearanceScreen';
+import { HistoryDetailScreen } from './src/screens/HistoryDetailScreen';
+import { HistoryScreen } from './src/screens/HistoryScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ParkingSessionScreen } from './src/screens/ParkingSessionScreen';
 import { VehicleManagementScreen } from './src/screens/VehicleManagementScreen';
+import { useParkingHistoryStore } from './src/stores/parkingHistoryStore';
 import { useParkingReminderStore } from './src/stores/parkingReminderStore';
 import { useParkingSessionStore } from './src/stores/parkingSessionStore';
 import { ThemeProvider, useAppTheme, type AppTheme } from './src/theme';
 
-type AppScreen = 'home' | 'vehicles' | 'appearance';
+type AppScreen =
+  | 'home'
+  | 'vehicles'
+  | 'appearance'
+  | 'history'
+  | 'history-detail';
 
 const visualPreview = isVisualPreviewEnabled
   ? applyVisualPreviewScenario()
@@ -37,6 +45,9 @@ function ParkingApp() {
   const [screen, setScreen] = useState<AppScreen>(
     visualPreview?.route ?? 'home',
   );
+  const [selectedHistoryRecordId, setSelectedHistoryRecordId] = useState<
+    string | null
+  >(visualPreview?.selectedHistoryRecordId ?? null);
   const { theme, hasHydrated: themeHasHydrated } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const session = useParkingSessionStore((state) => state.session);
@@ -57,6 +68,21 @@ function ParkingApp() {
   const reconcileReminder = useParkingReminderStore(
     (state) => state.reconcile,
   );
+  const historyHasHydrated = useParkingHistoryStore(
+    (state) => state.hasHydrated,
+  );
+  const hydrateHistory = useParkingHistoryStore((state) => state.hydrate);
+  const appendCompletedSession = useParkingHistoryStore(
+    (state) => state.appendCompletedSession,
+  );
+
+  useEffect(() => {
+    if (isVisualPreviewEnabled) {
+      return;
+    }
+
+    void hydrateHistory();
+  }, [hydrateHistory]);
 
   useEffect(() => {
     if (isVisualPreviewEnabled) {
@@ -67,26 +93,54 @@ function ParkingApp() {
   }, [hydrateReminder]);
 
   useEffect(() => {
-    if (session) {
+    if (session && session.status !== 'completed') {
       setScreen('home');
+      setSelectedHistoryRecordId(null);
     }
   }, [session]);
 
   useEffect(() => {
-    if (session || screen === 'home') {
+    if (
+      (session && session.status !== 'completed') ||
+      screen === 'home'
+    ) {
       return undefined;
     }
 
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
-        setScreen('home');
+        if (screen === 'history-detail') {
+          setScreen('history');
+        } else {
+          setSelectedHistoryRecordId(null);
+          setScreen('home');
+        }
         return true;
       },
     );
 
     return () => subscription.remove();
   }, [screen, session]);
+
+  useEffect(() => {
+    if (
+      isVisualPreviewEnabled ||
+      !sessionHasHydrated ||
+      !historyHasHydrated ||
+      session?.status !== 'completed'
+    ) {
+      return;
+    }
+
+    void appendCompletedSession(session);
+  }, [
+    appendCompletedSession,
+    historyHasHydrated,
+    session?.id,
+    session?.status,
+    sessionHasHydrated,
+  ]);
 
   useEffect(() => {
     if (isVisualPreviewEnabled) {
@@ -150,7 +204,14 @@ function ParkingApp() {
   ]);
 
   const isRestoring =
-    !themeHasHydrated || !sessionHasHydrated || !reminderHasHydrated;
+    !themeHasHydrated ||
+    !sessionHasHydrated ||
+    !reminderHasHydrated ||
+    !historyHasHydrated;
+  const protectedSessionId =
+    session?.status === 'completed' ? session.id : undefined;
+  const sessionPreemptsNavigation =
+    session !== null && session.status !== 'completed';
 
   let content;
 
@@ -174,17 +235,47 @@ function ParkingApp() {
         />
         <Text style={styles.restorationTitle}>Getting parking ready</Text>
         <Text style={styles.restorationText}>
-          Restoring your vehicle, parking session, and reminder preference.
+          Restoring your vehicle, parking session, history, and reminder
+          preference.
         </Text>
       </View>
     );
+  } else if (sessionPreemptsNavigation) {
+    content = (
+      <ParkingSessionScreen onViewHistory={() => setScreen('history')} />
+    );
+  } else if (screen === 'history') {
+    content = (
+      <HistoryScreen
+        onBack={() => {
+          setSelectedHistoryRecordId(null);
+          setScreen('home');
+        }}
+        onSelectRecord={(recordId) => {
+          setSelectedHistoryRecordId(recordId);
+          setScreen('history-detail');
+        }}
+        protectedSessionId={protectedSessionId}
+      />
+    );
+  } else if (screen === 'history-detail' && selectedHistoryRecordId) {
+    content = (
+      <HistoryDetailScreen
+        onBack={() => setScreen('history')}
+        protectedSessionId={protectedSessionId}
+        recordId={selectedHistoryRecordId}
+      />
+    );
   } else if (session) {
-    content = <ParkingSessionScreen />;
+    content = (
+      <ParkingSessionScreen onViewHistory={() => setScreen('history')} />
+    );
   } else if (screen === 'home') {
     content = (
       <HomeScreen
         onManageVehicles={() => setScreen('vehicles')}
         onOpenAppearance={() => setScreen('appearance')}
+        onOpenHistory={() => setScreen('history')}
       />
     );
   } else if (screen === 'vehicles') {

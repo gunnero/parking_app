@@ -83,6 +83,16 @@ function readNonEmptyString(value: unknown): string | InvalidValue {
   return normalized ? normalized : INVALID_VALUE;
 }
 
+function readOptionalNonEmptyString(
+  value: unknown,
+): string | undefined | InvalidValue {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return readNonEmptyString(value);
+}
+
 function readNullableTimestamp(
   value: unknown,
 ): string | null | InvalidValue {
@@ -347,8 +357,10 @@ export function restoreParkingSession(value: unknown): ParkingSession | null {
   const operatorId = readNonEmptyString(value.operatorId);
   const zoneId = readNonEmptyString(value.zoneId);
   const zoneCode = readNonEmptyString(value.zoneCode);
+  const zoneName = readOptionalNonEmptyString(value.zoneName);
   const vehicleId = readNonEmptyString(value.vehicleId);
   const plate = readNonEmptyString(value.plate);
+  const vehicleNickname = readOptionalNonEmptyString(value.vehicleNickname);
   const startMessage = readNonEmptyString(value.startMessage);
   const stopMessage = readNonEmptyString(value.stopMessage);
   const ownership = readOwnership(value.ownership);
@@ -372,8 +384,10 @@ export function restoreParkingSession(value: unknown): ParkingSession | null {
     operatorId === INVALID_VALUE ||
     zoneId === INVALID_VALUE ||
     zoneCode === INVALID_VALUE ||
+    zoneName === INVALID_VALUE ||
     vehicleId === INVALID_VALUE ||
     plate === INVALID_VALUE ||
+    vehicleNickname === INVALID_VALUE ||
     startMessage === INVALID_VALUE ||
     stopMessage === INVALID_VALUE ||
     ownership === INVALID_VALUE ||
@@ -418,8 +432,10 @@ export function restoreParkingSession(value: unknown): ParkingSession | null {
     operatorId,
     zoneId,
     zoneCode,
+    ...(zoneName ? { zoneName } : {}),
     vehicleId,
     plate,
+    ...(vehicleNickname ? { vehicleNickname } : {}),
     ...(ownership ? { ownership } : {}),
     startRequestPreparedAt,
     startRequestResult,

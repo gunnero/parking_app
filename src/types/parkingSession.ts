@@ -27,8 +27,10 @@ export interface ParkingSessionBase {
   readonly operatorId: string;
   readonly zoneId: string;
   readonly zoneCode: string;
+  readonly zoneName?: string;
   readonly vehicleId: string;
   readonly plate: string;
+  readonly vehicleNickname?: string;
   readonly ownership?: ParkingSessionOwnership;
   readonly startRequestPreparedAt: string | null;
   readonly startRequestResult: ParkingSessionRequestResult | null;

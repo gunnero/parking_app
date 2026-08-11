@@ -37,11 +37,13 @@ import { detectParkingZone } from '../utils/zoneDetection';
 
 type HomeScreenProps = {
   onManageVehicles: () => void;
+  onOpenHistory: () => void;
   onOpenAppearance: () => void;
 };
 
 export function HomeScreen({
   onManageVehicles,
+  onOpenHistory,
   onOpenAppearance,
 }: HomeScreenProps) {
   const { theme } = useAppTheme();
@@ -636,6 +638,38 @@ export function HomeScreen({
 
         <Card padding="none">
           <Pressable
+            accessibilityHint="Opens completed parking sessions saved on this device"
+            accessibilityLabel="Parking history"
+            accessibilityRole="button"
+            onPress={onOpenHistory}
+            style={({ pressed }) => [
+              styles.historyLink,
+              pressed && { backgroundColor: theme.colors.surfacePressed },
+            ]}
+          >
+            <View style={styles.historyIcon}>
+              <AppIcon
+                color={theme.colors.accentText}
+                name="clock"
+                size={20}
+              />
+            </View>
+            <View style={styles.detailsHeading}>
+              <Text style={styles.detailsTitle}>Parking history</Text>
+              <Text style={styles.detailsSubtitle}>
+                Completed sessions saved on this device
+              </Text>
+            </View>
+            <AppIcon
+              color={theme.colors.accentText}
+              name="chevron-right"
+              size={20}
+            />
+          </Pressable>
+
+          <View style={styles.detailsDivider} />
+
+          <Pressable
             accessibilityHint="Shows GPS, reminder and development information"
             accessibilityLabel={
               isDetailsExpanded
@@ -935,6 +969,23 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
       minHeight: theme.touchTargets.minimum,
       paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.sm,
+    },
+    historyLink: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      minHeight: theme.touchTargets.minimum,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+    },
+    historyIcon: {
+      alignItems: 'center',
+      backgroundColor: theme.colors.accentSurface,
+      borderRadius: theme.radii.full,
+      flexShrink: 0,
+      height: theme.touchTargets.minimum,
+      justifyContent: 'center',
+      width: theme.touchTargets.minimum,
     },
     detailsHeading: {
       flex: 1,

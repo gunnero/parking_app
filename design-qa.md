@@ -1,95 +1,116 @@
-# PARK-005A Design QA
+# PARK-006 Design QA
 
-## Evidence
+## Comparison target
 
-- Primary visual source: `/Users/aleksandardimovski/.codex/generated_images/019fecb4-9fdf-72c1-b70b-61d3c4132c84/exec-6432bede-b4be-4d61-9cc6-4de6ff276136.png`
-- Initial Home capture: `/tmp/parkingapp-park005a-audit/01-home-light-before.png`
-- Initial active-session capture: `/tmp/parkingapp-park005a-audit/02-active-light-before.png`
-- Final Option 1 comparison: `/tmp/parkingapp-park005a-audit/option1-vs-final-390x844.png`
-- Final Light Home: `/tmp/parkingapp-park005a-audit/final-light-home-390x844.png`
-- Final Light active session: `/tmp/parkingapp-park005a-audit/final-light-active-390x844.png`
-- Final Dark Home: `/tmp/parkingapp-park005a-audit/final-dark-home-390x844.png`
-- Final Dark active session: `/tmp/parkingapp-park005a-audit/final-dark-active-390x844.png`
-- Final Dark state matrix: `/tmp/parkingapp-park005a-audit/final-dark-matrix.png`
-- Final Home responsive sheet: `/tmp/parkingapp-park005a-audit/final-home-responsive.png`
-- Final active-session responsive sheet: `/tmp/parkingapp-park005a-audit/final-active-responsive.png`
+- Source visual truth: `/Users/aleksandardimovski/.codex/generated_images/019fecb4-9fdf-72c1-b70b-61d3c4132c84/exec-6432bede-b4be-4d61-9cc6-4de6ff276136.png`
+- Browser-rendered implementation: `/tmp/parkingapp-park006-screenshots/history-populated-light-390x844.png`
+- Combined comparison evidence: `/tmp/parkingapp-park006-screenshots/option1-vs-history-390x844.png`
+- State: existing Option 1 Home visual language compared with the PARK-006 populated History state.
+- Viewport: 390 × 844 CSS pixels, device density 1 for the implementation.
+- Source pixels: 853 × 1844, normalized to 390 × 844 for comparison.
+- Implementation pixels: 390 × 844 at a 390 × 844 CSS viewport.
 
-The normalized source comparison uses a 390 × 844 CSS-pixel viewport. The
-853 × 1844 source image was resized to the same aspect-correct dimensions and
-placed beside the browser-rendered implementation without a device frame.
+The source and implementation are different product states, so this is not a
+pixel-for-pixel layout comparison. The source remains authoritative for the
+quiet civic visual language: typography, warm canvas, blue accent, card
+surfaces, borders, icon treatment, spacing rhythm, and restrained semantic
+badges. PARK-006's supplied screen specification is authoritative for History
+information architecture and content.
 
-## Final Findings
+## Full-view comparison evidence
 
-No actionable P0, P1, or P2 visual difference remains within PARK-005A scope.
+The combined image places the normalized source and rendered History screen in
+one comparison input. History preserves the source's strong title hierarchy,
+warm neutral canvas, blue functional accent, rounded bordered cards, compact
+semantic badges, vehicle icon treatment, and generous vertical rhythm. The
+new list is denser than Home by necessity, but it remains visibly part of the
+same product rather than introducing a second visual system.
 
-- Home now follows the requested source and accessibility order: parking zone,
-  vehicle, Start parking, compact GPS/reminder status, then secondary Details.
-- Start parking is a taller, shadowed primary action with the simulation safety
-  statement kept immediately visible below it.
-- GPS/reminder diagnostics, SMS preview, support actions, and synthetic-data
-  notes are available through an accessible, collapsed Details disclosure.
-- The active screen is one restrained surface ordered Parking active, zone and
-  vehicle, elapsed timer, started time, reminder, then Stop parking. The timer
-  is the visual hero and is not exposed as a per-second live announcement.
-- Development mode remains unmistakable without a duplicate active-session
-  banner. TEST-zone and no-real-SMS wording remains visible on Home and active.
-- Dark borders were strengthened through the semantic `border` token, and
-  disabled-label contrast was improved through `onDisabled`. Dark disabled
-  text is now 5.55:1. Semantic text/status pairs remain at least 5.37:1, while
-  control boundaries continue to use the stronger 3.39–4.68:1 token.
-- Light tokens did not regress. Final light and dark captures show readable
-  primary, destructive, warning, success, form, badge, and muted treatments.
-- 320, 375, 390, and 430 pixel captures show no horizontal clipping or text
-  overflow. At 320 pixels the active Stop action needs one short vertical
-  scroll because the required development disclosure remains visible.
+No actionable P0, P1, or P2 difference was found in the first comparison pass,
+and no visual change was made in response to that pass.
 
-## Comparison History
+## Focused comparison evidence
 
-1. The initial Home placed a roughly 150-pixel status dashboard before a
-   56-pixel Start action. The final Home puts the enlarged action immediately
-   after the compact vehicle card, then uses a short two-item status strip.
-2. Repeated simulation, SMS-preview, and diagnostic content competed with the
-   parking task. Secondary content moved into Details while the critical TEST
-   and no-real-SMS statement stayed visible.
-3. The initial active screen used a separate development banner and a broad
-   green session card. The final screen consolidates safety context inside one
-   neutral surface with restrained success accents and a larger timer.
-4. Dedicated dark review found faint default borders and disabled labels. Both
-   were corrected in shared semantic tokens and the complete dark matrix was
-   recaptured.
-5. Final normalized source comparison and responsive sheets found no remaining
-   scope-level visual blocker.
+The header and first two history cards in
+`/tmp/parkingapp-park006-screenshots/option1-vs-history-390x844.png` are readable
+at the normalized size, so a separate crop was not needed. They show the
+relevant typography, border/radius, icon, metadata, badge, spacing, and color
+surfaces at useful scale.
 
-## Interaction and Runtime Checks
+## Required fidelity surfaces
 
-- Completed the deterministic browser flow: Start parking → confirm simulated
-  start → active → Stop parking → confirm simulated stop → completed → Home.
-- Expanded Details and confirmed the button changes to `Hide parking details`
-  and the SMS preview enters the accessibility tree only while expanded.
-- Inspected Home, active, awaiting start, awaiting stop, completed, vehicles,
-  Appearance, permission denied, no-zone, and development-zone states in Dark.
-- Inspected equivalent primary states in Light.
-- Browser console errors: 0.
-- Development-only warnings are limited to Expo Notifications' known web
-  limitation and React Native Web's legacy shadow-property warning.
+- Fonts and typography: existing system typography tokens, optical weights,
+  line heights, overlines, tabular-number treatment, and hierarchy are reused.
+  Long zone and vehicle labels wrap without reducing font scaling.
+- Spacing and layout rhythm: page margins, card padding, section gaps, radii,
+  separators, and elevation match the PARK-005A system. At 320 pixels, long
+  fields reflow vertically without horizontal overflow.
+- Colors and visual tokens: both Light and Dark use existing semantic tokens;
+  no screen-specific color was added. Simulation and completion states are
+  conveyed by text and icons as well as color.
+- Image quality and asset fidelity: these screens require no photographic or
+  illustrative assets. All visible icons use the existing Expo Symbols-based
+  semantic icon component; no emoji, placeholder art, inline SVG, or CSS-drawn
+  asset was introduced.
+- Copy and content: labels use human dates, times, and durations; no internal
+  IDs, coordinates, guessed prices, or raw ISO timestamps appear. Local-only
+  storage and simulation status are explicit.
 
-## Accessibility and Device Limits
+## Responsive and theme evidence
 
-- Source order, explicit labels, live-region scope, expanded state, touch
-  targets, contrast, and 320-pixel reflow were checked in code and browser DOM.
-- Native VoiceOver/TalkBack output, 200% OS font scaling, native SMS composer,
-  background location, and notification delivery still require physical-device
-  verification; browser/Metro checks cannot prove those operating-system paths.
+- Light empty, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-empty-light-390x844.png`
+- Light populated, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-populated-light-390x844.png`
+- Light detail, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-detail-light-390x844.png`
+- Dark populated, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-populated-dark-390x844.png`
+- Dark detail, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-detail-dark-390x844.png`
+- Long fields, Light 320 × 568: `/tmp/parkingapp-park006-screenshots/history-long-fields-light-320x568.png`
+- Missing optional fields, Light 375 × 812: `/tmp/parkingapp-park006-screenshots/history-missing-fields-light-375x812.png`
+- Populated, Dark 430 × 932: `/tmp/parkingapp-park006-screenshots/history-populated-dark-430x932.png`
+- Completed receipt, Light 390 × 844: `/tmp/parkingapp-park006-screenshots/session-receipt-light-390x844.png`
 
-## Completion Checklist
+Measured document widths equal their 320, 375, 390, and 430 pixel viewports.
+No horizontal overflow, date/time clipping, plate overflow, or unusable action
+was observed.
 
-- [x] Use Option 1 as the primary visual reference.
-- [x] Strengthen Start parking prominence and Home hierarchy.
-- [x] Make the active elapsed timer the visual hero.
-- [x] QA the requested dark and light states.
-- [x] QA 320, 375, 390, and 430 pixel widths.
-- [x] Preserve semantic theme tokens and accessibility behavior.
-- [x] Preserve parking, SMS, confirmation, persistence, and reminder safeguards.
-- [x] Add no product functionality.
+## Interaction and accessibility checks
+
+- Home → Parking history → Home navigation passed.
+- Completed receipt → View History preserved the receipt and created one
+  duplicate-safe history entry.
+- The current receipt disabled Clear history and exposed an explanatory label.
+- History → receipt → Done returned Home only after the archive succeeded.
+- Empty, populated, simulated, long-field, missing-optional, and detail states
+  rendered through deterministic preview fixtures.
+- Accessibility labels verbalize zone, vehicle, date, start, stop, duration,
+  and simulation. Destructive actions are labelled and implemented behind
+  native confirmation alerts. Touch targets remain at least 44 points.
+- Browser console errors: 0. Existing development warnings are limited to the
+  Expo Notifications web limitation and React Native Web shadow deprecation.
+
+Native VoiceOver/TalkBack output, OS-level large text, and native Alert dialogs
+remain physical-device QA items; the browser harness cannot prove those paths.
+
+## Findings
+
+No actionable P0, P1, or P2 visual, responsive, theme, interaction, or
+accessibility finding remains within PARK-006 scope.
+
+## Comparison history
+
+1. First normalized full-view comparison: passed with no P0/P1/P2 finding.
+2. Light/Dark and 320/375/390/430 responsive matrix: passed without a visual
+   fix iteration.
+3. Core History and completed-receipt interaction pass: passed with zero
+   browser console errors.
+
+## Implementation checklist
+
+- [x] Match the established PARK-005A design language.
+- [x] Provide empty, populated, simulated, and detail history states.
+- [x] Preserve readable long and missing-optional data layouts.
+- [x] Validate Light and Dark themes.
+- [x] Validate 320, 375, 390, and 430 pixel widths.
+- [x] Keep simulation, privacy, and trusted-cost safety visible.
+- [x] Verify primary History navigation and completed-receipt interactions.
 
 final result: passed

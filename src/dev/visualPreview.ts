@@ -3,12 +3,17 @@ import type { PersistStorage } from "zustand/middleware";
 import { TEST_PARKING_ZONES } from "../data/testParkingZones";
 import type { ParkingReminderRuntimeSnapshot } from "../services/parkingReminderController";
 import { useLocationStore } from "../stores/locationStore";
+import {
+  setParkingHistoryStorageAdapterForTesting,
+  useParkingHistoryStore,
+} from "../stores/parkingHistoryStore";
 import { useParkingReminderStore } from "../stores/parkingReminderStore";
 import { useParkingSessionStore } from "../stores/parkingSessionStore";
 import { useThemeStore } from "../stores/themeStore";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { ThemePreference } from "../theme/types";
 import type { LocationState } from "../types/location";
+import type { ParkingHistoryRecord } from "../types/parkingHistory";
 import type {
   ParkingSession,
   ParkingSessionStatus,
@@ -20,6 +25,10 @@ import {
   transitionParkingSession,
   type ParkingSessionEvent,
 } from "../utils/parkingSessionState";
+import {
+  createParkingHistoryRecordId,
+  restoreParkingHistoryRecord,
+} from "../utils/parkingHistory";
 import { createParkingSessionDraft } from "../utils/parkingSmsEligibility";
 
 export const VISUAL_PREVIEW_SCENARIOS = [
@@ -43,22 +52,35 @@ export const VISUAL_PREVIEW_SCENARIOS = [
   "reminder-error",
   "vehicles",
   "appearance",
+  "history-empty",
+  "history-one",
+  "history-several",
+  "history-simulated",
+  "history-detail",
+  "history-long-fields",
+  "history-missing-fields",
 ] as const;
 
 export type VisualPreviewScenario =
   (typeof VISUAL_PREVIEW_SCENARIOS)[number];
-export type VisualPreviewRoute = "home" | "vehicles" | "appearance";
+export type VisualPreviewRoute =
+  | "home"
+  | "vehicles"
+  | "appearance"
+  | "history"
+  | "history-detail";
 
 export interface VisualPreviewApplicationResult {
   applied: boolean;
   scenario: VisualPreviewScenario;
   route: VisualPreviewRoute;
   theme: ThemePreference;
+  selectedHistoryRecordId: string | null;
 }
 
 const DEFAULT_SCENARIO: VisualPreviewScenario = "home-development";
 const DEFAULT_THEME: ThemePreference = "system";
-const PREVIEW_INSTANT = Date.now();
+const PREVIEW_INSTANT = Date.parse("2026-08-11T14:00:00.000Z");
 const PREVIEW_LOCATION = {
   latitude: 41.0305,
   longitude: 21.336,
@@ -250,6 +272,17 @@ function routeForScenario(scenario: VisualPreviewScenario): VisualPreviewRoute {
     return "appearance";
   }
 
+  if (
+    scenario === "history-detail" ||
+    scenario === "history-missing-fields"
+  ) {
+    return "history-detail";
+  }
+
+  if (scenario.startsWith("history-")) {
+    return "history";
+  }
+
   return "home";
 }
 
@@ -346,6 +379,145 @@ function createSessionFixtures(): Readonly<
   };
 }
 
+type HistoryFixtures = Readonly<{
+  recent: ParkingHistoryRecord;
+  simulated: ParkingHistoryRecord;
+  missingOptionalFields: ParkingHistoryRecord;
+  longFields: ParkingHistoryRecord;
+}>;
+
+function requireHistoryFixture(
+  value: ParkingHistoryRecord,
+): ParkingHistoryRecord {
+  const record = restoreParkingHistoryRecord(value);
+
+  if (!record) {
+    throw new Error("The visual preview parking-history fixture is invalid.");
+  }
+
+  return record;
+}
+
+function createHistoryFixtures(): HistoryFixtures {
+  const recentSessionId = "visual-preview-history-a6-session";
+  const simulatedSessionId = "visual-preview-history-test-a1-session";
+  const missingFieldsSessionId = "visual-preview-history-a2-session";
+  const longFieldsSessionId = "visual-preview-history-a10-session";
+
+  return {
+    recent: requireHistoryFixture({
+      id: createParkingHistoryRecordId(recentSessionId),
+      sessionId: recentSessionId,
+      operatorId: "bitola-parking",
+      zoneId: "bitola-a6",
+      zoneCode: "A6",
+      zoneName: "Bitola zone A6 (unverified)",
+      vehicleId: "preview-vehicle-bt7713ad",
+      plate: "BT7713AD",
+      vehicleNickname: "My car",
+      startedAt: "2026-08-11T12:33:00.000Z",
+      stoppedAt: "2026-08-11T13:47:00.000Z",
+      durationSeconds: 4_440,
+      startLocation: { ...PREVIEW_LOCATION },
+      finalCost: null,
+      costSource: "unknown",
+      simulation: false,
+      createdAt: "2026-08-11T13:47:00.000Z",
+    }),
+    simulated: requireHistoryFixture({
+      id: createParkingHistoryRecordId(simulatedSessionId),
+      sessionId: simulatedSessionId,
+      operatorId: "development-test-parking",
+      zoneId: "bitola-test-a1",
+      zoneCode: "TEST-A1",
+      zoneName: "Development Zone TEST-A1",
+      vehicleId: "preview-vehicle-sk1234ab",
+      plate: "SK1234AB",
+      vehicleNickname: "Family car",
+      startedAt: "2026-08-10T16:05:00.000Z",
+      stoppedAt: "2026-08-10T16:42:00.000Z",
+      durationSeconds: 2_220,
+      startLocation: { ...PREVIEW_LOCATION },
+      finalCost: null,
+      costSource: "unknown",
+      simulation: true,
+      createdAt: "2026-08-10T16:42:00.000Z",
+    }),
+    missingOptionalFields: requireHistoryFixture({
+      id: createParkingHistoryRecordId(missingFieldsSessionId),
+      sessionId: missingFieldsSessionId,
+      operatorId: "bitola-parking",
+      zoneCode: "A2",
+      plate: "OH4321CD",
+      startedAt: "2026-08-09T08:00:00.000Z",
+      stoppedAt: "2026-08-09T08:20:00.000Z",
+      durationSeconds: 1_200,
+      finalCost: null,
+      costSource: "unknown",
+      simulation: false,
+      createdAt: "2026-08-09T08:20:00.000Z",
+    }),
+    longFields: requireHistoryFixture({
+      id: createParkingHistoryRecordId(longFieldsSessionId),
+      sessionId: longFieldsSessionId,
+      operatorId: "bitola-parking",
+      zoneId: "bitola-a10",
+      zoneCode: "A10",
+      zoneName: "Bitola central parking zone awaiting verification",
+      vehicleId: "preview-vehicle-sk1234ab",
+      plate: "SK1234AB",
+      vehicleNickname: "Primary family vehicle for weekend trips",
+      startedAt: "2026-08-08T06:11:00.000Z",
+      stoppedAt: "2026-08-08T07:59:00.000Z",
+      durationSeconds: 6_480,
+      finalCost: null,
+      costSource: "unknown",
+      simulation: false,
+      createdAt: "2026-08-08T07:59:00.000Z",
+    }),
+  };
+}
+
+function historyRecordsForScenario(
+  scenario: VisualPreviewScenario,
+  fixtures: HistoryFixtures,
+): ParkingHistoryRecord[] {
+  switch (scenario) {
+    case "history-one":
+    case "history-detail":
+      return [fixtures.recent];
+    case "history-several":
+      return [
+        fixtures.recent,
+        fixtures.simulated,
+        fixtures.missingOptionalFields,
+      ];
+    case "history-simulated":
+      return [fixtures.simulated];
+    case "history-long-fields":
+      return [fixtures.longFields];
+    case "history-missing-fields":
+      return [fixtures.missingOptionalFields];
+    default:
+      return [];
+  }
+}
+
+function selectedHistoryRecordForScenario(
+  scenario: VisualPreviewScenario,
+  fixtures: HistoryFixtures,
+): string | null {
+  if (scenario === "history-detail") {
+    return fixtures.recent.id;
+  }
+
+  if (scenario === "history-missing-fields") {
+    return fixtures.missingOptionalFields.id;
+  }
+
+  return null;
+}
+
 function locationForScenario(scenario: VisualPreviewScenario): LocationState {
   switch (scenario) {
     case "home-no-zone":
@@ -386,6 +558,12 @@ function runtime(
 
 function installDiscardStorage(): void {
   const createStorage = <T,>(): PersistStorage<T, void> => ({
+    getItem: () => null,
+    setItem: () => undefined,
+    removeItem: () => undefined,
+  });
+
+  setParkingHistoryStorageAdapterForTesting({
     getItem: () => null,
     setItem: () => undefined,
     removeItem: () => undefined,
@@ -493,12 +671,27 @@ export function applyVisualPreviewScenario(
   const route = routeForScenario(scenario);
 
   if (!isVisualPreviewEnabled) {
-    return { applied: false, scenario, route, theme };
+    return {
+      applied: false,
+      scenario,
+      route,
+      theme,
+      selectedHistoryRecordId: null,
+    };
   }
 
   installDiscardStorage();
 
   const sessions = createSessionFixtures();
+  const historyFixtures = createHistoryFixtures();
+  const historyRecords = historyRecordsForScenario(
+    scenario,
+    historyFixtures,
+  );
+  const selectedHistoryRecordId = selectedHistoryRecordForScenario(
+    scenario,
+    historyFixtures,
+  );
   const status = SESSION_SCENARIO_STATUS[scenario];
   const isReminderScenario = scenario.startsWith("reminder-");
   const selectedSession = status
@@ -508,6 +701,14 @@ export function applyVisualPreviewScenario(
       : null;
 
   useThemeStore.setState({ preference: theme, hasHydrated: true });
+  useParkingHistoryStore.setState({
+    records: historyRecords,
+    hasHydrated: true,
+    isHydrating: false,
+    isReadOnly: false,
+    hydrationError: null,
+    operationError: null,
+  });
   useVehicleStore.setState({
     vehicles: PREVIEW_VEHICLES.map((vehicle) => ({ ...vehicle })),
     hasHydrated: true,
@@ -524,5 +725,11 @@ export function applyVisualPreviewScenario(
   });
   applyReminderFixture(scenario, sessions.active, selectedSession);
 
-  return { applied: true, scenario, route, theme };
+  return {
+    applied: true,
+    scenario,
+    route,
+    theme,
+    selectedHistoryRecordId,
+  };
 }

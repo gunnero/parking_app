@@ -266,13 +266,17 @@ function buildSession(
       },
 ): ParkingSession {
   const startLocation = snapshotLocation(input.startLocation);
+  const zoneName = input.zone.name.trim();
+  const vehicleNickname = input.vehicle.nickname?.trim();
   const sessionBase: ParkingSessionBase = {
     id: sessionId,
     operatorId: delivery.operatorId,
     zoneId: input.zone.id.trim(),
     zoneCode: delivery.zoneCode,
+    ...(zoneName ? { zoneName } : {}),
     vehicleId: input.vehicle.id.trim(),
     plate: delivery.plate,
+    ...(vehicleNickname ? { vehicleNickname } : {}),
     startRequestPreparedAt: null,
     startRequestResult: null,
     startedAt: null,
