@@ -2,8 +2,8 @@
 
 ## Meeting links
 
-- [Public Macedonian demo](https://app.kalveri.com/?demo=1&lang=mk)
-- [Public English demo](https://app.kalveri.com/?demo=1&lang=en)
+- [Public Macedonian demo](https://app.kalveri.com/?lang=mk)
+- [Public English demo](https://app.kalveri.com/?lang=en)
 - [Source repository](https://github.com/gunnero/parking_app)
 
 The demo does not require a password. It remains marked as an unofficial
@@ -19,8 +19,9 @@ Kalveri pilot and is configured with `noindex` crawler directives.
   active session, manually confirm stop, and save a local completed receipt.
 - Local parking history with no account, backend, or cloud upload.
 
-Open the meeting-safe scenario with `?demo=1&lang=mk`. It resets when the page
-reloads and never opens an SMS composer or requests device capabilities.
+The meeting host always runs the fixed `TEST-A1` scenario, regardless of the
+phone's real location. It resets when the page reloads and never opens an SMS
+composer or requests device capabilities.
 
 ## What must not be presented as production-ready
 

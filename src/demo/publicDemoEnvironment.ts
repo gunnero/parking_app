@@ -3,9 +3,11 @@ import type { StateStorage } from "zustand/middleware";
 
 const PUBLIC_DEMO_QUERY_PARAMETER = "demo";
 const PUBLIC_DEMO_QUERY_VALUE = "1";
+const PUBLIC_DEMO_HOSTNAME = "app.kalveri.com";
 
 type LocationLikeGlobal = typeof globalThis & {
   location?: {
+    hostname?: unknown;
     search?: unknown;
   };
 };
@@ -27,6 +29,13 @@ function decodeQueryPart(value: string): string | null {
 function globalSearch(): string {
   const search = (globalThis as LocationLikeGlobal).location?.search;
   return typeof search === "string" ? search : "";
+}
+
+function globalHostname(): string {
+  const hostname = (globalThis as LocationLikeGlobal).location?.hostname;
+  return typeof hostname === "string"
+    ? hostname.trim().toLowerCase().replace(/\.$/, "")
+    : "";
 }
 
 export function getPublicDemoQueryValue(name: string): string | null {
@@ -58,8 +67,9 @@ export function getPublicDemoQueryValue(name: string): string | null {
  */
 export const isPublicDemoEnabled =
   Platform.OS === "web" &&
-  getPublicDemoQueryValue(PUBLIC_DEMO_QUERY_PARAMETER) ===
-    PUBLIC_DEMO_QUERY_VALUE;
+  (globalHostname() === PUBLIC_DEMO_HOSTNAME ||
+    getPublicDemoQueryValue(PUBLIC_DEMO_QUERY_PARAMETER) ===
+      PUBLIC_DEMO_QUERY_VALUE);
 
 /**
  * Public demo stores must never read or write the visitor's normal app data.

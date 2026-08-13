@@ -47,8 +47,9 @@ official Bitola parking service.
 
 ## Release verification
 
-- Open `https://app.kalveri.com/?demo=1` in a private browser window and verify
-  the page clearly says it is a Kalveri demo using test data.
+- Open `https://app.kalveri.com/` in a private browser window and verify the
+  page detects `TEST-A1` without a GPS prompt and clearly says it is a Kalveri
+  demo using test data.
 - Verify both Macedonian and English, light and dark themes, the mobile layout,
   and the `BT7713AD` / `TEST-A1` scenario.
 - Confirm that demo refreshes do not request location permission and that demo
@@ -62,8 +63,12 @@ official Bitola parking service.
   redirects to HTTPS.
 - Check the security headers and the browser console for CSP violations before
   the meeting.
-- Test foreground browser geolocation separately at the normal URL without
-  `?demo=1`; browsers require HTTPS and user permission.
+- Confirm `Permissions-Policy` contains `geolocation=()` so a regression cannot
+  request a visitor's real position on the public meeting host.
+- Test normal foreground browser geolocation only on localhost or a separate
+  non-pilot host without `?demo=1`; the meeting host intentionally stays in
+  fixed-location demo mode. Browsers require HTTPS (except localhost) and user
+  permission for real geolocation.
 - Test on at least one current iPhone Safari and Android Chrome device. Web
   cannot validate native SMS, background departure detection, or native
   notifications; those remain device-build test items.

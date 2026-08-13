@@ -18,8 +18,8 @@ Bitola service.
 ## Bilingual and responsive checks
 
 - Macedonian and English switch immediately from Appearance and persist in the
-  normal app. The opt-in public demo labels the setting as temporary because it
-  deliberately resets on reload.
+  normal app. The meeting host always runs the public demo and labels the
+  setting as temporary because it deliberately resets on reload.
 - The Macedonian Home screen, Appearance screen, simulated start/stop lifecycle,
   completed receipt, and History flow were exercised in the browser.
 - The public demo keeps `TEST-A1`, sample plate `BT7713AD`, sample location, and

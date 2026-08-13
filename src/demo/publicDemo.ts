@@ -44,9 +44,10 @@ export interface PublicDemoApplicationResult {
 }
 
 /**
- * Public demo mode is deliberately web-only and opt-in through the exact
+ * Public demo mode is deliberately web-only. It is always enabled on the
+ * meeting host and can be enabled on local/alternate hosts with the exact
  * `?demo=1` query parameter. It is never enabled by a build-time environment
- * variable, so a normal production visit retains normal app behaviour.
+ * variable or on a native build.
  */
 function publicDemoLanguage(): "en" | "mk" | "system" {
   const value = getPublicDemoQueryValue("lang");
@@ -99,14 +100,6 @@ export function applyPublicDemoScenario(): PublicDemoApplicationResult {
     return { applied: false, zoneCode: null };
   }
 
-  const demoZone = TEST_PARKING_ZONES.find(
-    (zone) => zone.code === PUBLIC_DEMO_ZONE_CODE,
-  );
-
-  if (!demoZone || demoZone.geographyStatus !== "test") {
-    return { applied: false, zoneCode: null };
-  }
-
   setParkingHistoryStorageAdapterForTesting({
     getItem: () => null,
     setItem: () => undefined,
@@ -148,6 +141,16 @@ export function applyPublicDemoScenario(): PublicDemoApplicationResult {
     setupPermissions: keepPublicDemoReminderOff,
   });
   setPublicDemoReminderOff();
+
+  const demoZone = TEST_PARKING_ZONES.find(
+    (zone) => zone.code === PUBLIC_DEMO_ZONE_CODE,
+  );
+
+  if (!demoZone || demoZone.geographyStatus !== "test") {
+    // Stay in isolated demo mode even if the fixture is misconfigured. The
+    // location/reminder actions above remain inert and no native effect runs.
+    return { applied: true, zoneCode: null };
+  }
 
   return { applied: true, zoneCode: PUBLIC_DEMO_ZONE_CODE };
 }

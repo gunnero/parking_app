@@ -67,7 +67,10 @@
     Header always set X-Content-Type-Options "nosniff"
     Header always set Referrer-Policy "no-referrer"
     Header always set X-Frame-Options "DENY"
-    Header always set Permissions-Policy "geolocation=(self), camera=(), microphone=()"
+    # The public meeting host is a deterministic TEST-A1 demo and must never
+    # request a visitor's real position. Test normal browser GPS on localhost
+    # or a separate non-pilot host instead.
+    Header always set Permissions-Policy "geolocation=(), camera=(), microphone=()"
     Header always set Cross-Origin-Opener-Policy "same-origin"
     Header always set Strict-Transport-Security "max-age=31536000"
     Header always unset X-Powered-By

@@ -45,7 +45,9 @@ type AppScreen =
 const visualPreview = isVisualPreviewEnabled
   ? applyVisualPreviewScenario()
   : null;
-const publicDemo = isPublicDemoEnabled ? applyPublicDemoScenario() : null;
+if (isPublicDemoEnabled) {
+  applyPublicDemoScenario();
+}
 
 function ParkingApp() {
   const [screen, setScreen] = useState<AppScreen>(
@@ -84,20 +86,20 @@ function ParkingApp() {
   );
 
   useEffect(() => {
-    if (isVisualPreviewEnabled || publicDemo?.applied) {
+    if (isVisualPreviewEnabled || isPublicDemoEnabled) {
       return;
     }
 
     void hydrateHistory();
-  }, [hydrateHistory, publicDemo?.applied]);
+  }, [hydrateHistory]);
 
   useEffect(() => {
-    if (isVisualPreviewEnabled || publicDemo?.applied) {
+    if (isVisualPreviewEnabled || isPublicDemoEnabled) {
       return;
     }
 
     void hydrateReminder();
-  }, [hydrateReminder, publicDemo?.applied]);
+  }, [hydrateReminder]);
 
   useEffect(() => {
     if (session && session.status !== 'completed') {
@@ -133,7 +135,7 @@ function ParkingApp() {
   useEffect(() => {
     if (
       isVisualPreviewEnabled ||
-      publicDemo?.applied ||
+      isPublicDemoEnabled ||
       !sessionHasHydrated ||
       !historyHasHydrated ||
       session?.status !== 'completed'
@@ -145,14 +147,13 @@ function ParkingApp() {
   }, [
     appendCompletedSession,
     historyHasHydrated,
-    publicDemo?.applied,
     session?.id,
     session?.status,
     sessionHasHydrated,
   ]);
 
   useEffect(() => {
-    if (isVisualPreviewEnabled || publicDemo?.applied) {
+    if (isVisualPreviewEnabled || isPublicDemoEnabled) {
       return;
     }
 
@@ -170,7 +171,6 @@ function ParkingApp() {
     reminderEnabled,
     reminderHasHydrated,
     reminderUserActionBusy,
-    publicDemo?.applied,
     session?.id,
     session?.startLocation?.accuracy,
     session?.startLocation?.latitude,
@@ -180,7 +180,7 @@ function ParkingApp() {
   ]);
 
   useEffect(() => {
-    if (isVisualPreviewEnabled || publicDemo?.applied) {
+    if (isVisualPreviewEnabled || isPublicDemoEnabled) {
       return undefined;
     }
 
@@ -209,7 +209,6 @@ function ParkingApp() {
   }, [
     reconcileReminder,
     refreshReminder,
-    publicDemo?.applied,
     reminderHasHydrated,
     sessionHasHydrated,
   ]);

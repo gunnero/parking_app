@@ -5,9 +5,9 @@
 </p>
 
 <p align="center">
-  <a href="https://app.kalveri.com/?demo=1&lang=mk"><strong>Отвори го демото на македонски</strong></a>
+  <a href="https://app.kalveri.com/?lang=mk"><strong>Отвори го демото на македонски</strong></a>
   ·
-  <a href="https://app.kalveri.com/?demo=1&lang=en"><strong>Open the demo in English</strong></a>
+  <a href="https://app.kalveri.com/?lang=en"><strong>Open the demo in English</strong></a>
 </p>
 
 > [!IMPORTANT]
@@ -59,8 +59,9 @@
 
 ## Try the public demo
 
-The meeting-safe demo is activated only by `?demo=1` on the web. No account or
-password is required:
+The meeting host always runs the safe, fixed-location demo. Opening
+`app.kalveri.com` from a phone therefore detects `TEST-A1` without reading the
+phone's real GPS location. No account or password is required:
 
 - Sample vehicle: `BT7713AD`
 - Sample zone: `TEST-A1`
@@ -85,7 +86,7 @@ At every step, the UI keeps the development status visible. Returning from an SM
 
 | Capability | Web | Android / iOS |
 | --- | --- | --- |
-| Deterministic public demo | Yes, with `?demo=1` | Use the web demo for meetings |
+| Deterministic public demo | Always enabled on `app.kalveri.com` | Use the web demo for meetings |
 | Foreground GPS in normal mode | Browser permission over HTTPS | Native foreground permission |
 | Real SMS composer | Unsupported | Foundation implemented but currently blocked by unverified production zones |
 | Background departure reminder | Unsupported | Implemented; requires a custom development build and physical-device QA |
@@ -129,7 +130,9 @@ npm ci
 npm run web
 ```
 
-Open the URL printed by Expo and append `?demo=1&lang=mk` for the deterministic Macedonian demo.
+Open the URL printed by Expo and append `?demo=1&lang=mk` for the deterministic
+Macedonian demo. Local web development without `?demo=1` keeps the normal
+foreground-GPS flow available for testing.
 
 Other useful commands:
 
