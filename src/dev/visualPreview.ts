@@ -10,6 +10,7 @@ import {
 import { useParkingReminderStore } from "../stores/parkingReminderStore";
 import { useParkingSessionStore } from "../stores/parkingSessionStore";
 import { useThemeStore } from "../stores/themeStore";
+import { useLanguageStore } from "../stores/languageStore";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { ThemePreference } from "../theme/types";
 import type { LocationState } from "../types/location";
@@ -572,6 +573,7 @@ function installDiscardStorage(): void {
   useVehicleStore.persist.setOptions({ storage: createStorage() });
   useParkingSessionStore.persist.setOptions({ storage: createStorage() });
   useThemeStore.persist.setOptions({ storage: createStorage() });
+  useLanguageStore.persist.setOptions({ storage: createStorage() });
 
   // Restarting against the synchronous discard stores invalidates any
   // in-flight AsyncStorage hydration that began while modules were loading.
@@ -579,6 +581,7 @@ function installDiscardStorage(): void {
   void useVehicleStore.persist.rehydrate();
   void useParkingSessionStore.persist.rehydrate();
   void useThemeStore.persist.rehydrate();
+  void useLanguageStore.persist.rehydrate();
 }
 
 function applyReminderFixture(
@@ -701,6 +704,7 @@ export function applyVisualPreviewScenario(
       : null;
 
   useThemeStore.setState({ preference: theme, hasHydrated: true });
+  useLanguageStore.setState({ hasHydrated: true });
   useParkingHistoryStore.setState({
     records: historyRecords,
     hasHydrated: true,

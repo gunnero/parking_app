@@ -1,3 +1,56 @@
+# Bilingual web-pilot design QA
+
+## Comparison target
+
+- Source visual truth: `/Users/aleksandardimovski/.codex/generated_images/019fecb4-9fdf-72c1-b70b-61d3c4132c84/exec-6432bede-b4be-4d61-9cc6-4de6ff276136.png`
+- Macedonian implementation, 390 × 844: `/tmp/parkingapp-bilingual-home-mk-390-viewport.png`
+- Macedonian implementation, 320 × 568: `/tmp/parkingapp-bilingual-home-mk-320.png`
+- Macedonian settings, Light, 390 × 844: `/tmp/parkingapp-bilingual-settings-mk-light-390.png`
+- Combined source/implementation evidence: `/tmp/parkingapp-bilingual-option1-comparison.png`
+
+The comparison confirms that the meeting pilot preserves the selected Option 1
+direction: quiet civic typography, warm neutral canvas, restrained blue accent,
+semantic development treatment, rounded bordered surfaces, and a zone-first
+mobile hierarchy. The always-visible Kalveri/demo warning makes the pilot
+slightly taller than the original visual. That is an intentional safety
+deviation: synthetic TEST data must not be mistaken for an official Parking
+Bitola service.
+
+## Bilingual and responsive checks
+
+- Macedonian and English switch immediately from Appearance and persist in the
+  normal app. The opt-in public demo labels the setting as temporary because it
+  deliberately resets on reload.
+- The Macedonian Home screen, Appearance screen, simulated start/stop lifecycle,
+  completed receipt, and History flow were exercised in the browser.
+- The public demo keeps `TEST-A1`, sample plate `BT7713AD`, sample location, and
+  simulation/no-real-SMS wording explicit in both languages.
+- At 320 and 390 CSS pixels, measured document width equalled viewport width;
+  no horizontal overflow or clipped primary action was found.
+- Light and Dark modes were checked. The selected System preference continues to
+  follow the browser/device scheme.
+- The final browser pass produced zero console errors and zero warnings.
+
+## Interaction checks
+
+- Home → Appearance → language/theme changes → Home passed.
+- Home → simulated Start → manual confirmation → Active → simulated Stop →
+  manual confirmation → completed receipt → History passed.
+- Public demo refresh uses the fixed sample location and never asks for browser
+  location, SMS, notification, or background-location permission.
+- Normal web mode retains explicit foreground-location permission handling;
+  native SMS, background departure detection, and native notifications remain
+  device-build test items and are not represented as web capabilities.
+
+## Result
+
+No actionable P0, P1, or P2 visual, responsive, theme, localization, interaction,
+or accessibility finding remains for the meeting-safe web pilot.
+
+final result: passed
+
+---
+
 # PARK-006 Design QA
 
 ## Comparison target

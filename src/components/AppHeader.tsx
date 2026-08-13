@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useLocalization } from '../localization';
 import { useAppTheme } from '../theme';
 import { AppIcon } from './AppIcon';
 
@@ -21,19 +22,22 @@ export function AppHeader({
   variant = 'product',
   onBack,
   onAppearance,
-  backLabel = 'Back',
-  appearanceLabel = 'Appearance',
+  backLabel,
+  appearanceLabel,
 }: AppHeaderProps) {
+  const { t } = useLocalization();
   const { theme } = useAppTheme();
   const showBack = variant === 'back';
   const showAppearance = variant === 'appearance';
+  const resolvedBackLabel = backLabel ?? t('Back');
+  const resolvedAppearanceLabel = appearanceLabel ?? t('Appearance');
 
   return (
     <View style={[styles.header, { gap: theme.spacing.sm }]}>
       {showBack && onBack ? (
         <HeaderAction
           icon="back"
-          label={backLabel}
+          label={resolvedBackLabel}
           onPress={onBack}
           align="left"
         />
@@ -79,7 +83,7 @@ export function AppHeader({
         {showAppearance && onAppearance ? (
           <HeaderAction
             icon="appearance"
-            label={appearanceLabel}
+            label={resolvedAppearanceLabel}
             onPress={onAppearance}
             align="right"
           />

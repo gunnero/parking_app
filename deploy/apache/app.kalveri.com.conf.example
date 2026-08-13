@@ -1,0 +1,69 @@
+# Apache 2.4 example for the static Expo web pilot.
+# Review paths and modules before enabling this file.
+
+<VirtualHost *:80>
+    ServerName app.kalveri.com
+
+    RewriteEngine On
+    RewriteRule ^ https://app.kalveri.com%{REQUEST_URI} [R=308,L,NE]
+</VirtualHost>
+
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+    ServerName app.kalveri.com
+    DocumentRoot /var/www/app.kalveri.com/current
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/app.kalveri.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/app.kalveri.com/privkey.pem
+
+    ErrorLog ${APACHE_LOG_DIR}/app.kalveri.com-error.log
+    CustomLog ${APACHE_LOG_DIR}/app.kalveri.com-access.log combined
+
+    <Directory /var/www/app.kalveri.com/current>
+        AllowOverride None
+        Options -Indexes
+        Require all granted
+
+        # Expo's default web output is a single-page application.
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^ /index.html [L]
+
+        # Optional meeting-only access control. Create the password file
+        # outside the web root, then uncomment all four directives.
+        # To enable Basic authentication, COMMENT OUT `Require all granted`
+        # above, then uncomment all four directives below. Apache otherwise
+        # treats sibling Require directives as RequireAny and anonymous users
+        # would still be granted access.
+        # AuthType Basic
+        # AuthName "Parking Bitola pilot"
+        # AuthUserFile /etc/apache2/app-kalveri.htpasswd
+        # Require valid-user
+    </Directory>
+
+    # This pilot must not be indexed or cached as an official service.
+    Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set X-Frame-Options "DENY"
+    Header always set Permissions-Policy "geolocation=(self), camera=(), microphone=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Strict-Transport-Security "max-age=31536000"
+    Header always unset X-Powered-By
+
+    # React Native Web injects styles at runtime, hence style-src unsafe-inline.
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; manifest-src 'self'"
+
+    <Files "index.html">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </Files>
+
+    <FilesMatch "\.(?:css|js|mjs|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|otf)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</VirtualHost>
+</IfModule>

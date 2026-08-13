@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   ScrollView,
   StyleSheet,
@@ -18,6 +17,9 @@ import {
   InfoRow,
   StatusBadge,
 } from '../components';
+import { isPublicDemoEnabled } from '../demo';
+import { useLocalization } from '../localization';
+import { requestConfirmation } from '../services/confirmationService';
 import {
   runStartParkingSmsFlow,
   runStopParkingSmsFlow,
@@ -38,25 +40,17 @@ import {
 import { getTrustedParkingHistoryFinalCost } from '../utils/parkingHistory';
 import { getParkingSessionElapsedDisplay } from '../utils/parkingSessionState';
 
-function formatClockTime(value: string | null): string {
+function formatClockTime(value: string | null, locale: string): string {
   if (!value) {
     return '—';
   }
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return date.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatParkingTime(value, locale);
 }
 
 function formatTrustedFinalCost(
   record: ParkingHistoryRecord | null,
+  locale: string,
 ): string | null {
   if (!record) {
     return null;
@@ -69,12 +63,12 @@ function formatTrustedFinalCost(
   }
 
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       currency: cost.currency,
       style: 'currency',
     }).format(cost.amount);
   } catch {
-    return `${cost.amount.toLocaleString()} ${cost.currency}`;
+    return `${cost.amount.toLocaleString(locale)} ${cost.currency}`;
   }
 }
 
@@ -112,14 +106,16 @@ function SessionSnapshot({
   session: ParkingSession;
   styles: SessionStyles;
 }) {
+  const { t } = useLocalization();
+
   return (
     <Card padding="none">
       <View style={styles.infoRow}>
-        <InfoRow icon="parking" label="Zone" value={session.zoneCode} />
+        <InfoRow icon="parking" label={t('Zone')} value={session.zoneCode} />
       </View>
       <View style={styles.divider} />
       <View style={styles.infoRow}>
-        <InfoRow icon="car" label="Vehicle" value={session.plate} />
+        <InfoRow icon="car" label={t('Vehicle')} value={session.plate} />
       </View>
       {includeRequest ? (
         <>
@@ -129,8 +125,8 @@ function SessionSnapshot({
               icon={session.deliveryMode === 'simulation' ? 'shield' : 'sms'}
               label={
                 session.deliveryMode === 'simulation'
-                  ? 'Simulated request'
-                  : 'SMS preview'
+                  ? t('Simulated request')
+                  : t('SMS preview')
               }
               tone={
                 session.deliveryMode === 'simulation'
@@ -153,19 +149,28 @@ function SimulationBanner({
   session: ParkingSession;
   styles: SessionStyles;
 }) {
+  const { t } = useLocalization();
+
   return (
     <Card
-      accessibilityLabel={`Development mode. ${session.zoneCode} is a simulated test zone. No SMS will be opened or sent.`}
+      accessibilityLabel={t(
+        'Development mode. {zoneCode} is a simulated test zone. No SMS will be opened or sent.',
+        { zoneCode: session.zoneCode },
+      )}
       padding="compact"
       tone="development"
     >
       <View style={styles.simulationHeading}>
-        <StatusBadge label="DEVELOPMENT MODE" tone="development" />
+        <StatusBadge label={t('DEVELOPMENT MODE')} tone="development" />
       </View>
-      <Text style={styles.simulationTitle}>Simulated parking session</Text>
+      <Text style={styles.simulationTitle}>
+        {t('Simulated parking session')}
+      </Text>
       <Text style={styles.simulationText}>
-        {session.zoneCode} uses synthetic test data. It is not an official
-        Bitola parking zone, and no SMS will be opened or sent.
+        {t(
+          '{zoneCode} uses synthetic test data. It is not an official Bitola parking zone, and no SMS will be opened or sent.',
+          { zoneCode: session.zoneCode },
+        )}
       </Text>
     </Card>
   );
@@ -178,13 +183,17 @@ function ErrorNotice({
   message: string;
   styles: SessionStyles;
 }) {
+  const { t, translateMessage } = useLocalization();
+
   return (
     <View accessibilityLiveRegion="assertive">
       <Card padding="compact" tone="danger">
         <Text accessibilityRole="alert" style={styles.errorTitle}>
-          Action needs attention
+          {t('Action needs attention')}
         </Text>
-        <Text style={styles.errorText}>{message}</Text>
+        <Text style={styles.errorText}>
+          {translateMessage(message) ?? message}
+        </Text>
       </Card>
     </View>
   );
@@ -273,6 +282,7 @@ function ParkingReminderCard({
   styles: SessionStyles;
   theme: AppTheme;
 }) {
+  const { t, translateMessage } = useLocalization();
   const enabled = useParkingReminderStore((state) => state.enabled);
   const isBusy = useParkingReminderStore((state) => state.isBusy);
   const runtime = useParkingReminderStore((state) => state.runtime);
@@ -310,22 +320,26 @@ function ParkingReminderCard({
         runtime.status === 'storage-error'
       ? runtime.reason
       : 'Departure reminders are off.';
+  const translatedReason = translateMessage(reason) ?? reason;
   const showReason =
+    isPublicDemoEnabled ||
     reminderError !== null ||
     (runtime.status !== 'monitoring' && runtime.status !== 'disabled');
 
   const explainAndSetUp = () => {
-    Alert.alert(
-      'Set up parking reminders',
-      'Allow background location so Parking can remind you if you leave while a parking session is still active. Parking is never stopped automatically, and no route history is stored.',
-      [
-        { text: 'Not now', style: 'cancel' },
-        {
-          text: 'Continue',
-          onPress: () => void setupPermissions(session),
-        },
-      ],
-    );
+    if (isPublicDemoEnabled) {
+      return;
+    }
+
+    requestConfirmation({
+      title: t('Set up parking reminders'),
+      message: t(
+        'Allow background location so Parking can remind you if you leave while a parking session is still active. Parking is never stopped automatically, and no route history is stored.',
+      ),
+      cancelLabel: t('Not now'),
+      confirmLabel: t('Continue'),
+      onConfirm: () => void setupPermissions(session),
+    });
   };
 
   const openSettings = () => {
@@ -337,7 +351,7 @@ function ParkingReminderCard({
       <View style={styles.reminderHeader}>
         <View style={styles.reminderHeadingGroup}>
           <Text accessibilityRole="header" style={styles.reminderTitle}>
-            Parking reminder
+            {t('Parking reminder')}
           </Text>
           <View
             accessibilityLiveRegion="polite"
@@ -347,15 +361,23 @@ function ParkingReminderCard({
               <ActivityIndicator color={theme.colors.accent} size="small" />
             ) : null}
             <StatusBadge
-              label={presentation.label}
-              tone={reminderBadgeTone(presentation.tone)}
+              label={t(
+                isPublicDemoEnabled ? 'UNAVAILABLE' : presentation.label,
+              )}
+              tone={
+                isPublicDemoEnabled
+                  ? 'warning'
+                  : reminderBadgeTone(presentation.tone)
+              }
             />
           </View>
         </View>
         <Switch
-          accessibilityHint="Controls background departure monitoring for the active parking session."
-          accessibilityLabel="Parking departure reminders"
-          disabled={isBusy}
+          accessibilityHint={t(
+            'Controls background departure monitoring for the active parking session.',
+          )}
+          accessibilityLabel={t('Parking departure reminders')}
+          disabled={isBusy || isPublicDemoEnabled}
           hitSlop={{ bottom: 8, left: 6, right: 6, top: 8 }}
           ios_backgroundColor={theme.colors.borderStrong}
           onValueChange={(nextEnabled) =>
@@ -370,17 +392,23 @@ function ParkingReminderCard({
         />
       </View>
       {showReason ? (
-        <Text style={styles.reminderReason}>{reason}</Text>
+        <Text style={styles.reminderReason}>
+          {isPublicDemoEnabled
+            ? t('Background parking reminders require Android or iOS.')
+            : translatedReason}
+        </Text>
       ) : null}
-      {enabled && (canRequestLocation || canRequestNotifications) ? (
+      {!isPublicDemoEnabled &&
+      enabled &&
+      (canRequestLocation || canRequestNotifications) ? (
         <View style={styles.reminderAction}>
           <AppButton
             compact
             disabled={isBusy}
             label={
               canRequestNotifications
-                ? 'Enable notifications'
-                : 'Set up reminder'
+                ? t('Enable notifications')
+                : t('Set up reminder')
             }
             leadingIcon={
               canRequestNotifications ? 'notification' : 'reminder'
@@ -395,7 +423,7 @@ function ParkingReminderCard({
           <AppButton
             compact
             disabled={isBusy}
-            label="Retry reminder check"
+            label={t('Retry reminder check')}
             leadingIcon="refresh"
             onPress={() =>
               void (enabled
@@ -411,7 +439,7 @@ function ParkingReminderCard({
           <AppButton
             compact
             disabled={isBusy}
-            label="Open settings"
+            label={t('Open settings')}
             onPress={openSettings}
             variant="ghost"
           />
@@ -430,31 +458,32 @@ function ActiveSessionHero({
   session: ParkingSession;
   styles: SessionStyles;
 }) {
+  const { locale, t } = useLocalization();
   const isSimulation = session.deliveryMode === 'simulation';
   const elapsed = getParkingSessionElapsedDisplay(session, nowMs);
 
   return (
     <Card elevated padding="regular">
       <View style={styles.activeStatusRow}>
-        <StatusBadge label="PARKING ACTIVE" tone="success" />
+        <StatusBadge label={t('PARKING ACTIVE')} tone="success" />
         {isSimulation ? (
-          <StatusBadge label="DEVELOPMENT MODE" tone="development" />
+          <StatusBadge label={t('DEVELOPMENT MODE')} tone="development" />
         ) : null}
       </View>
       <View style={styles.activeContext}>
         <View style={styles.activeFact}>
-          <Text style={styles.activeFactLabel}>Zone</Text>
+          <Text style={styles.activeFactLabel}>{t('Zone')}</Text>
           <Text style={styles.activeFactValue}>{session.zoneCode}</Text>
         </View>
         <View style={styles.activeFact}>
-          <Text style={styles.activeFactLabel}>Vehicle</Text>
+          <Text style={styles.activeFactLabel}>{t('Vehicle')}</Text>
           <Text style={styles.activeFactValue}>{session.plate}</Text>
         </View>
       </View>
       <View style={styles.activeDivider} />
-      <Text style={styles.elapsedLabel}>Elapsed time</Text>
+      <Text style={styles.elapsedLabel}>{t('Elapsed time')}</Text>
       <Text
-        accessibilityLabel={`Elapsed time ${elapsed}`}
+        accessibilityLabel={t('Elapsed time {elapsed}', { elapsed })}
         adjustsFontSizeToFit
         minimumFontScale={0.6}
         numberOfLines={1}
@@ -464,15 +493,17 @@ function ActiveSessionHero({
       </Text>
       <View style={styles.activeDivider} />
       <View style={styles.activeStarted}>
-        <Text style={styles.activeFactLabel}>Started</Text>
+        <Text style={styles.activeFactLabel}>{t('Started')}</Text>
         <Text style={styles.activeStartedValue}>
-          {formatClockTime(session.startedAt)}
+          {formatClockTime(session.startedAt, locale)}
         </Text>
       </View>
       {isSimulation ? (
         <Text style={styles.activeSimulationText}>
-          Simulated test session. {session.zoneCode} is not an official Bitola
-          parking zone, and no SMS was opened or sent.
+          {t(
+            'Simulated test session. {zoneCode} is not an official Bitola parking zone, and no SMS was opened or sent.',
+            { zoneCode: session.zoneCode },
+          )}
         </Text>
       ) : null}
     </Card>
@@ -487,6 +518,7 @@ export function ParkingSessionScreen({
   onViewHistory,
 }: ParkingSessionScreenProps) {
   const { theme } = useAppTheme();
+  const { locale, t, translateMessage } = useLocalization();
   const { width } = useWindowDimensions();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const session = useParkingSessionStore((state) => state.session);
@@ -568,7 +600,7 @@ export function ParkingSessionScreen({
     archivedRecord?.sessionId === session.id
       ? archivedRecord
       : persistedHistoryRecord;
-  const trustedFinalCost = formatTrustedFinalCost(receiptRecord);
+  const trustedFinalCost = formatTrustedFinalCost(receiptRecord, locale);
   const visibleOperationError = operationError ?? historyOperationError;
   const receiptStartedAt = receiptRecord?.startedAt ?? session.startedAt;
   const receiptStoppedAt = receiptRecord?.stoppedAt ?? session.stoppedAt;
@@ -768,15 +800,19 @@ export function ParkingSessionScreen({
       body = (
         <>
           <StateIntro
-            badge="PREPARING"
+            badge={t('PREPARING')}
             badgeTone="accent"
             description={
               showSimulation
-                ? 'Prepare this development simulation. Nothing will be sent.'
-                : 'Open the native SMS composer to prepare the parking request. Returning to the app does not confirm operator acceptance.'
+                ? t(
+                    'Prepare this development simulation. Nothing will be sent.',
+                  )
+                : t(
+                    'Open the native SMS composer to prepare the parking request. Returning to the app does not confirm operator acceptance.',
+                  )
             }
             styles={styles}
-            title="Prepare parking request"
+            title={t('Prepare parking request')}
           />
           <SessionSnapshot
             includeRequest
@@ -790,10 +826,10 @@ export function ParkingSessionScreen({
             <AppButton
               label={
                 operationError
-                  ? 'Try start request again'
+                  ? t('Try start request again')
                   : showSimulation
-                    ? 'Prepare simulated request'
-                    : 'Open SMS composer'
+                    ? t('Prepare simulated request')
+                    : t('Open SMS composer')
               }
               leadingIcon={showSimulation ? 'shield' : 'sms'}
               loading={isProcessing}
@@ -801,7 +837,7 @@ export function ParkingSessionScreen({
             />
             <AppButton
               disabled={isProcessing}
-              label="Cancel"
+              label={t('Cancel')}
               leadingIcon="close"
               onPress={cancelPendingAndReturnHome}
               variant="ghost"
@@ -815,26 +851,31 @@ export function ParkingSessionScreen({
       body = (
         <>
           <StateIntro
-            badge="CONFIRMATION NEEDED"
+            badge={t('CONFIRMATION NEEDED')}
             badgeTone="warning"
             description={
               showSimulation
-                ? 'The simulated request is prepared. Confirm it manually to activate this development session.'
-                : 'The parking SMS is prepared, but parking is not active yet. Confirm only after you receive an activation response from ЈП Паркинзи.'
+                ? t(
+                    'The simulated request is prepared. Confirm it manually to activate this development session.',
+                  )
+                : t(
+                    'The parking SMS is prepared, but parking is not active yet. Confirm only after you receive an activation response from ЈП Паркинзи.',
+                  )
             }
             styles={styles}
             title={
               showSimulation
-                ? 'Simulated request prepared'
-                : 'Parking SMS prepared'
+                ? t('Simulated request prepared')
+                : t('Parking SMS prepared')
             }
           />
           <SessionSnapshot session={session} styles={styles} />
           <Card padding="compact" tone="warning">
-            <Text style={styles.noticeTitle}>Not active yet</Text>
+            <Text style={styles.noticeTitle}>{t('Not active yet')}</Text>
             <Text style={styles.noticeText}>
-              Closing the SMS composer alone does not confirm that the operator
-              accepted the request.
+              {t(
+                'Closing the SMS composer alone does not confirm that the operator accepted the request.',
+              )}
             </Text>
           </Card>
           {operationError ? (
@@ -844,8 +885,8 @@ export function ParkingSessionScreen({
             <AppButton
               label={
                 showSimulation
-                  ? 'Confirm simulated start'
-                  : 'Confirm parking started'
+                  ? t('Confirm simulated start')
+                  : t('Confirm parking started')
               }
               leadingIcon="check"
               onPress={() =>
@@ -856,7 +897,7 @@ export function ParkingSessionScreen({
               }
             />
             <AppButton
-              label="Cancel"
+              label={t('Cancel')}
               leadingIcon="close"
               onPress={cancelPendingAndReturnHome}
               variant="ghost"
@@ -884,8 +925,10 @@ export function ParkingSessionScreen({
           ) : null}
           <View style={styles.actions}>
             <AppButton
-              accessibilityHint="Prepares a stop request using the saved parking session. GPS is not required."
-              label="Stop parking"
+              accessibilityHint={t(
+                'Prepares a stop request using the saved parking session. GPS is not required.',
+              )}
+              label={t('Stop parking')}
               leadingIcon="stop"
               loading={isProcessing}
               onPress={() => void startStopFlow()}
@@ -900,15 +943,19 @@ export function ParkingSessionScreen({
       body = (
         <>
           <StateIntro
-            badge="PREPARING STOP"
+            badge={t('PREPARING STOP')}
             badgeTone="warning"
             description={
               showSimulation
-                ? 'Preparing a simulated stop. This does not use SMS or GPS.'
-                : 'Preparing the stop from the saved session details. A current GPS fix is not required.'
+                ? t(
+                    'Preparing a simulated stop. This does not use SMS or GPS.',
+                  )
+                : t(
+                    'Preparing the stop from the saved session details. A current GPS fix is not required.',
+                  )
             }
             styles={styles}
-            title="Stopping parking"
+            title={t('Stopping parking')}
           />
           <SessionSnapshot session={session} styles={styles} />
           {isProcessing ? (
@@ -920,10 +967,10 @@ export function ParkingSessionScreen({
                 <ActivityIndicator color={theme.colors.accent} />
                 <View style={styles.processingCopy}>
                   <Text style={styles.processingTitle}>
-                    Preparing stop request
+                    {t('Preparing stop request')}
                   </Text>
                   <Text style={styles.processingText}>
-                    Keep this screen open for a moment.
+                    {t('Keep this screen open for a moment.')}
                   </Text>
                 </View>
               </View>
@@ -935,14 +982,14 @@ export function ParkingSessionScreen({
           <View style={styles.actions}>
             {!isProcessing ? (
               <AppButton
-                label="Try stop request again"
+                label={t('Try stop request again')}
                 leadingIcon="refresh"
                 onPress={() => void prepareStopRequest()}
               />
             ) : null}
             <AppButton
               disabled={isProcessing}
-              label="Return to active parking"
+              label={t('Return to active parking')}
               leadingIcon="back"
               onPress={() =>
                 runTransition(
@@ -961,24 +1008,33 @@ export function ParkingSessionScreen({
       body = (
         <>
           <StateIntro
-            badge="NOT STOPPED YET"
+            badge={t('NOT STOPPED YET')}
             badgeTone="warning"
             description={
               showSimulation
-                ? 'The simulated stop is prepared. Confirm it manually to complete this development session.'
-                : 'The stop SMS is prepared, but parking may still be active. Confirm only after you receive a stop response from ЈП Паркинзи.'
+                ? t(
+                    'The simulated stop is prepared. Confirm it manually to complete this development session.',
+                  )
+                : t(
+                    'The stop SMS is prepared, but parking may still be active. Confirm only after you receive a stop response from ЈП Паркинзи.',
+                  )
             }
             styles={styles}
             title={
-              showSimulation ? 'Simulated stop prepared' : 'Stop SMS prepared'
+              showSimulation
+                ? t('Simulated stop prepared')
+                : t('Stop SMS prepared')
             }
           />
           <SessionSnapshot session={session} styles={styles} />
           <Card padding="compact" tone="warning">
-            <Text style={styles.noticeTitle}>Waiting for confirmation</Text>
+            <Text style={styles.noticeTitle}>
+              {t('Waiting for confirmation')}
+            </Text>
             <Text style={styles.noticeText}>
-              Closing the SMS composer alone does not prove that parking has
-              stopped.
+              {t(
+                'Closing the SMS composer alone does not prove that parking has stopped.',
+              )}
             </Text>
           </Card>
           {operationError ? (
@@ -988,14 +1044,14 @@ export function ParkingSessionScreen({
             <AppButton
               label={
                 showSimulation
-                  ? 'Confirm simulated stop'
-                  : 'Confirm parking stopped'
+                  ? t('Confirm simulated stop')
+                  : t('Confirm parking stopped')
               }
               leadingIcon="check"
               onPress={() => void completeStopAndArchive()}
             />
             <AppButton
-              label="Return to active parking"
+              label={t('Return to active parking')}
               leadingIcon="back"
               onPress={() =>
                 runTransition(
@@ -1014,55 +1070,69 @@ export function ParkingSessionScreen({
       body = (
         <>
           <StateIntro
-            badge={showSimulation ? 'SIMULATED SESSION' : 'SESSION COMPLETE'}
+            badge={
+              showSimulation
+                ? t('SIMULATED SESSION')
+                : t('SESSION COMPLETE')
+            }
             badgeTone={showSimulation ? 'development' : 'success'}
             description={
               showSimulation
-                ? 'This simulated development session is complete.'
-                : 'This parking session has been marked complete on this device.'
+                ? t('This simulated development session is complete.')
+                : t(
+                    'This parking session has been marked complete on this device.',
+                  )
             }
             styles={styles}
-            title="Parking completed"
+            title={t('Parking completed')}
           />
           <Card padding="none" tone="success">
             <InfoRow
-              detail={session.zoneName}
+              detail={
+                session.zoneName
+                  ? (translateMessage(session.zoneName) ?? session.zoneName)
+                  : undefined
+              }
               icon="parking"
-              label="Zone"
+              label={t('Zone')}
               value={session.zoneCode}
             />
             <View style={styles.divider} />
             <InfoRow
               detail={session.vehicleNickname}
               icon="car"
-              label="Vehicle"
+              label={t('Vehicle')}
               value={session.plate}
             />
             <View style={styles.divider} />
             <InfoRow
               icon="clock"
-              label="Started"
+              label={t('Started')}
               value={
-                receiptStartedAt ? formatParkingTime(receiptStartedAt) : '—'
+                receiptStartedAt
+                  ? formatParkingTime(receiptStartedAt, locale)
+                  : '—'
               }
             />
             <View style={styles.divider} />
             <InfoRow
               icon="success"
-              label="Stopped"
+              label={t('Stopped')}
               tone="success"
               value={
-                receiptStoppedAt ? formatParkingTime(receiptStoppedAt) : '—'
+                receiptStoppedAt
+                  ? formatParkingTime(receiptStoppedAt, locale)
+                  : '—'
               }
             />
             <View style={styles.divider} />
             <InfoRow
               icon="timer"
-              label="Duration"
+              label={t('Duration')}
               value={
                 receiptDurationSeconds === null
                   ? '—'
-                  : formatParkingDuration(receiptDurationSeconds)
+                  : formatParkingDuration(receiptDurationSeconds, locale)
               }
             />
             {trustedFinalCost ? (
@@ -1070,7 +1140,7 @@ export function ParkingSessionScreen({
                 <View style={styles.divider} />
                 <InfoRow
                   icon="success"
-                  label="Final cost"
+                  label={t('Final cost')}
                   tone="success"
                   value={trustedFinalCost}
                 />
@@ -1082,14 +1152,14 @@ export function ParkingSessionScreen({
           ) : null}
           <View style={styles.actions}>
             <AppButton
-              label="DONE"
+              label={t('DONE')}
               leadingIcon="check"
               loading={isArchiving}
               onPress={() => void finishCompletedSession()}
             />
             <AppButton
               disabled={isArchiving}
-              label="VIEW HISTORY"
+              label={t('VIEW HISTORY')}
               leadingIcon="clock"
               onPress={() => void openHistoryFromCompletedSession()}
               variant="secondary"
@@ -1103,11 +1173,13 @@ export function ParkingSessionScreen({
       body = (
         <>
           <StateIntro
-            badge="REQUEST FAILED"
+            badge={t('REQUEST FAILED')}
             badgeTone="danger"
-            description="No parking state was confirmed. Clear this request to return home."
+            description={t(
+              'No parking state was confirmed. Clear this request to return home.',
+            )}
             styles={styles}
-            title="Parking request failed"
+            title={t('Parking request failed')}
           />
           <SessionSnapshot session={session} styles={styles} />
           {operationError ? (
@@ -1115,7 +1187,7 @@ export function ParkingSessionScreen({
           ) : null}
           <View style={styles.actions}>
             <AppButton
-              label="Return home"
+              label={t('Return home')}
               leadingIcon="back"
               onPress={() =>
                 runTransition(
@@ -1143,8 +1215,8 @@ export function ParkingSessionScreen({
         ]}
       >
         <AppHeader
-          subtitle="Parking session"
-          title="Parking Bitola"
+          subtitle={t('Parking session')}
+          title={t('Parking Bitola')}
           variant="product"
         />
         {showSimulation && session.status !== 'active' ? (

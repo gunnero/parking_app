@@ -19,6 +19,11 @@ import {
   applyVisualPreviewScenario,
   isVisualPreviewEnabled,
 } from './src/dev';
+import {
+  applyPublicDemoScenario,
+  isPublicDemoEnabled,
+} from './src/demo';
+import { LocalizationProvider, useLocalization } from './src/localization';
 import { AppearanceScreen } from './src/screens/AppearanceScreen';
 import { HistoryDetailScreen } from './src/screens/HistoryDetailScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
@@ -40,6 +45,7 @@ type AppScreen =
 const visualPreview = isVisualPreviewEnabled
   ? applyVisualPreviewScenario()
   : null;
+const publicDemo = isPublicDemoEnabled ? applyPublicDemoScenario() : null;
 
 function ParkingApp() {
   const [screen, setScreen] = useState<AppScreen>(
@@ -49,6 +55,7 @@ function ParkingApp() {
     string | null
   >(visualPreview?.selectedHistoryRecordId ?? null);
   const { theme, hasHydrated: themeHasHydrated } = useAppTheme();
+  const { hasHydrated: languageHasHydrated, t } = useLocalization();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const session = useParkingSessionStore((state) => state.session);
   const sessionHasHydrated = useParkingSessionStore(
@@ -77,20 +84,20 @@ function ParkingApp() {
   );
 
   useEffect(() => {
-    if (isVisualPreviewEnabled) {
+    if (isVisualPreviewEnabled || publicDemo?.applied) {
       return;
     }
 
     void hydrateHistory();
-  }, [hydrateHistory]);
+  }, [hydrateHistory, publicDemo?.applied]);
 
   useEffect(() => {
-    if (isVisualPreviewEnabled) {
+    if (isVisualPreviewEnabled || publicDemo?.applied) {
       return;
     }
 
     void hydrateReminder();
-  }, [hydrateReminder]);
+  }, [hydrateReminder, publicDemo?.applied]);
 
   useEffect(() => {
     if (session && session.status !== 'completed') {
@@ -126,6 +133,7 @@ function ParkingApp() {
   useEffect(() => {
     if (
       isVisualPreviewEnabled ||
+      publicDemo?.applied ||
       !sessionHasHydrated ||
       !historyHasHydrated ||
       session?.status !== 'completed'
@@ -137,13 +145,14 @@ function ParkingApp() {
   }, [
     appendCompletedSession,
     historyHasHydrated,
+    publicDemo?.applied,
     session?.id,
     session?.status,
     sessionHasHydrated,
   ]);
 
   useEffect(() => {
-    if (isVisualPreviewEnabled) {
+    if (isVisualPreviewEnabled || publicDemo?.applied) {
       return;
     }
 
@@ -161,6 +170,7 @@ function ParkingApp() {
     reminderEnabled,
     reminderHasHydrated,
     reminderUserActionBusy,
+    publicDemo?.applied,
     session?.id,
     session?.startLocation?.accuracy,
     session?.startLocation?.latitude,
@@ -170,7 +180,7 @@ function ParkingApp() {
   ]);
 
   useEffect(() => {
-    if (isVisualPreviewEnabled) {
+    if (isVisualPreviewEnabled || publicDemo?.applied) {
       return undefined;
     }
 
@@ -199,12 +209,14 @@ function ParkingApp() {
   }, [
     reconcileReminder,
     refreshReminder,
+    publicDemo?.applied,
     reminderHasHydrated,
     sessionHasHydrated,
   ]);
 
   const isRestoring =
     !themeHasHydrated ||
+    !languageHasHydrated ||
     !sessionHasHydrated ||
     !reminderHasHydrated ||
     !historyHasHydrated;
@@ -233,10 +245,13 @@ function ParkingApp() {
           size="large"
           style={styles.restorationSpinner}
         />
-        <Text style={styles.restorationTitle}>Getting parking ready</Text>
+        <Text style={styles.restorationTitle}>
+          {t('Getting parking ready')}
+        </Text>
         <Text style={styles.restorationText}>
-          Restoring your vehicle, parking session, history, and reminder
-          preference.
+          {t(
+            'Restoring your vehicle, parking session, history, and reminder preference.',
+          )}
         </Text>
       </View>
     );
@@ -295,9 +310,11 @@ function ParkingApp() {
 export default function App() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <ThemeProvider>
-        <ParkingApp />
-      </ThemeProvider>
+      <LocalizationProvider>
+        <ThemeProvider>
+          <ParkingApp />
+        </ThemeProvider>
+      </LocalizationProvider>
     </SafeAreaProvider>
   );
 }

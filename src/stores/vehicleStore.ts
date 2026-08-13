@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import { publicDemoAwareStateStorage } from "../demo/publicDemoEnvironment";
 import type {
   Vehicle,
   VehicleInput,
@@ -253,7 +254,9 @@ export const useVehicleStore = create<VehicleStoreState>()(
     },
     {
       name: VEHICLE_STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() =>
+        publicDemoAwareStateStorage(AsyncStorage),
+      ),
       partialize: (state): PersistedVehicleState => ({
         vehicles: state.vehicles,
       }),

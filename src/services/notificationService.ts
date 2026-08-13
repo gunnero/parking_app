@@ -1,15 +1,52 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
+import {
+  getNativeAppLanguage,
+  type NativeAppLanguage,
+} from "../localization/nativeLocale";
+
 export const PARKING_REMINDER_CHANNEL_ID = "parking-reminders";
 export const PARKING_DEPARTURE_NOTIFICATION_TYPE =
   "parking-departure-reminder";
 
 const PARKING_DEPARTURE_NOTIFICATION_IDENTIFIER_PREFIX =
   "parking-departure-reminder:";
-const PARKING_DEPARTURE_NOTIFICATION_TITLE = "Parking is still active";
-const PARKING_DEPARTURE_NOTIFICATION_BODY =
-  "You appear to have left your parked location. Stop parking if you are finished.";
+
+type ParkingNotificationCopy = {
+  channelName: string;
+  channelDescription: string;
+  departureTitle: string;
+  departureBody: string;
+  zoneLabel: string;
+  vehicleLabel: string;
+};
+
+const PARKING_NOTIFICATION_COPY: Record<
+  NativeAppLanguage,
+  ParkingNotificationCopy
+> = {
+  en: {
+    channelName: "Parking reminders",
+    channelDescription:
+      "Reminders when parking is still active after you appear to leave.",
+    departureTitle: "Parking is still active",
+    departureBody:
+      "You appear to have left your parked location. Stop parking if you are finished.",
+    zoneLabel: "Zone",
+    vehicleLabel: "Vehicle",
+  },
+  mk: {
+    channelName: "Потсетници за паркирање",
+    channelDescription:
+      "Потсетници кога паркирањето е сè уште активно откако ќе ја напуштите локацијата.",
+    departureTitle: "Паркирањето сè уште е активно",
+    departureBody:
+      "Изгледа дека ја напуштивте локацијата каде што паркиравте. Запрете го паркирањето ако сте завршиле.",
+    zoneLabel: "Зона",
+    vehicleLabel: "Возило",
+  },
+};
 
 export type NotificationPermissionState =
   | "granted"
@@ -160,8 +197,9 @@ function mapPermissionStatus(
   }
 }
 
-/** Creates the Android 8+ channel and is a no-op on iOS. */
-export async function ensureParkingReminderChannel(): Promise<
+async function ensureParkingReminderChannelForLanguage(
+  language: NativeAppLanguage,
+): Promise<
   NotificationServiceResult<null>
 > {
   if (!isSupportedNativePlatform()) {
@@ -177,12 +215,13 @@ export async function ensureParkingReminderChannel(): Promise<
   }
 
   try {
+    const copy = PARKING_NOTIFICATION_COPY[language];
+
     await Notifications.setNotificationChannelAsync(
       PARKING_REMINDER_CHANNEL_ID,
       {
-        name: "Parking reminders",
-        description:
-          "Reminders when parking is still active after you appear to leave.",
+        name: copy.channelName,
+        description: copy.channelDescription,
         importance: Notifications.AndroidImportance.DEFAULT,
         showBadge: false,
       },
@@ -198,6 +237,15 @@ export async function ensureParkingReminderChannel(): Promise<
       ),
     };
   }
+}
+
+/** Creates the Android 8+ channel and is a no-op on iOS. */
+export async function ensureParkingReminderChannel(): Promise<
+  NotificationServiceResult<null>
+> {
+  return ensureParkingReminderChannelForLanguage(
+    await getNativeAppLanguage(),
+  );
 }
 
 /** Reads notification permission without displaying a prompt. */
@@ -321,7 +369,11 @@ export async function scheduleParkingDepartureReminder(
     };
   }
 
-  const channelResult = await ensureParkingReminderChannel();
+  const language = await getNativeAppLanguage();
+  const copy = PARKING_NOTIFICATION_COPY[language];
+  const channelResult = await ensureParkingReminderChannelForLanguage(
+    language,
+  );
 
   if (!channelResult.success) {
     return channelResult;
@@ -344,8 +396,8 @@ export async function scheduleParkingDepartureReminder(
   const zoneCode = normalizedContext(input.zoneCode);
   const plate = normalizedContext(input.plate);
   const context = [
-    zoneCode ? `Zone: ${zoneCode}` : null,
-    plate ? `Vehicle: ${plate}` : null,
+    zoneCode ? `${copy.zoneLabel}: ${zoneCode}` : null,
+    plate ? `${copy.vehicleLabel}: ${plate}` : null,
   ]
     .filter((value): value is string => value !== null)
     .join(" · ");
@@ -355,10 +407,10 @@ export async function scheduleParkingDepartureReminder(
     await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
-        title: PARKING_DEPARTURE_NOTIFICATION_TITLE,
+        title: copy.departureTitle,
         body: context
-          ? `${PARKING_DEPARTURE_NOTIFICATION_BODY}\n${context}`
-          : PARKING_DEPARTURE_NOTIFICATION_BODY,
+          ? `${copy.departureBody}\n${context}`
+          : copy.departureBody,
         sound: "default",
         data: {
           type: PARKING_DEPARTURE_NOTIFICATION_TYPE,

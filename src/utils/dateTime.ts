@@ -2,6 +2,29 @@ export type ParkingDateTimeValue = Date | string | number;
 
 const INVALID_FORMAT_VALUE = "—";
 
+const MACEDONIAN_SHORT_MONTHS = [
+  "јан.",
+  "фев.",
+  "мар.",
+  "апр.",
+  "мај",
+  "јун.",
+  "јул.",
+  "авг.",
+  "септ.",
+  "окт.",
+  "ноем.",
+  "дек.",
+] as const;
+
+function isMacedonianLocale(locale?: string): boolean {
+  return locale?.toLowerCase().startsWith("mk") === true;
+}
+
+function twoDigits(value: number): string {
+  return value.toString().padStart(2, "0");
+}
+
 /** Returns a finite timestamp without mutating Date inputs. */
 export function getParkingTimestampMilliseconds(
   value: ParkingDateTimeValue,
@@ -71,6 +94,17 @@ export function formatParkingDate(
   value: ParkingDateTimeValue,
   locale?: string,
 ): string {
+  const milliseconds = getParkingTimestampMilliseconds(value);
+
+  if (milliseconds === null) {
+    return INVALID_FORMAT_VALUE;
+  }
+
+  if (isMacedonianLocale(locale)) {
+    const date = new Date(milliseconds);
+    return `${date.getDate()} ${MACEDONIAN_SHORT_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  }
+
   return formatParkingDateTime(
     value,
     { day: "numeric", month: "short", year: "numeric" },
@@ -83,6 +117,17 @@ export function formatParkingTime(
   value: ParkingDateTimeValue,
   locale?: string,
 ): string {
+  const milliseconds = getParkingTimestampMilliseconds(value);
+
+  if (milliseconds === null) {
+    return INVALID_FORMAT_VALUE;
+  }
+
+  if (isMacedonianLocale(locale)) {
+    const date = new Date(milliseconds);
+    return `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}`;
+  }
+
   return formatParkingDateTime(
     value,
     { hour: "2-digit", minute: "2-digit" },
@@ -91,7 +136,10 @@ export function formatParkingTime(
 }
 
 /** Formats a duration compactly without introducing a date library. */
-export function formatParkingDuration(durationSeconds: number): string {
+export function formatParkingDuration(
+  durationSeconds: number,
+  locale?: string,
+): string {
   if (
     !Number.isFinite(durationSeconds) ||
     !Number.isInteger(durationSeconds) ||
@@ -100,12 +148,14 @@ export function formatParkingDuration(durationSeconds: number): string {
     return INVALID_FORMAT_VALUE;
   }
 
+  const isMacedonian = isMacedonianLocale(locale);
+
   if (durationSeconds === 0) {
-    return "0m";
+    return isMacedonian ? "0 мин." : "0m";
   }
 
   if (durationSeconds < 60) {
-    return "<1m";
+    return isMacedonian ? "<1 мин." : "<1m";
   }
 
   const totalMinutes = Math.floor(durationSeconds / 60);
@@ -113,7 +163,13 @@ export function formatParkingDuration(durationSeconds: number): string {
   const minutes = totalMinutes % 60;
 
   if (hours === 0) {
-    return `${minutes}m`;
+    return isMacedonian ? `${minutes} мин.` : `${minutes}m`;
+  }
+
+  if (isMacedonian) {
+    return minutes === 0
+      ? `${hours} ч.`
+      : `${hours} ч. ${minutes} мин.`;
   }
 
   return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
@@ -122,21 +178,26 @@ export function formatParkingDuration(durationSeconds: number): string {
 /** Provides an expanded duration suitable for accessibility labels. */
 export function formatParkingDurationAccessible(
   durationSeconds: number,
+  locale?: string,
 ): string {
   if (
     !Number.isFinite(durationSeconds) ||
     !Number.isInteger(durationSeconds) ||
     durationSeconds < 0
   ) {
-    return "Duration unavailable";
+    return isMacedonianLocale(locale)
+      ? "Времетраењето не е достапно"
+      : "Duration unavailable";
   }
 
+  const isMacedonian = isMacedonianLocale(locale);
+
   if (durationSeconds === 0) {
-    return "0 minutes";
+    return isMacedonian ? "0 минути" : "0 minutes";
   }
 
   if (durationSeconds < 60) {
-    return "Less than 1 minute";
+    return isMacedonian ? "Помалку од 1 минута" : "Less than 1 minute";
   }
 
   const totalMinutes = Math.floor(durationSeconds / 60);
@@ -145,11 +206,19 @@ export function formatParkingDurationAccessible(
   const parts: string[] = [];
 
   if (hours > 0) {
-    parts.push(`${hours} ${hours === 1 ? "hour" : "hours"}`);
+    parts.push(
+      isMacedonian
+        ? `${hours} ${hours === 1 ? "час" : "часа"}`
+        : `${hours} ${hours === 1 ? "hour" : "hours"}`,
+    );
   }
 
   if (minutes > 0) {
-    parts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`);
+    parts.push(
+      isMacedonian
+        ? `${minutes} ${minutes === 1 ? "минута" : "минути"}`
+        : `${minutes} ${minutes === 1 ? "minute" : "minutes"}`,
+    );
   }
 
   return parts.join(" ");

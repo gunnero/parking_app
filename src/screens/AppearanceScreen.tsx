@@ -16,6 +16,11 @@ import {
   type AppIconName,
 } from '../components';
 import {
+  type LanguagePreference,
+  useLocalization,
+} from '../localization';
+import { isPublicDemoEnabled } from '../demo';
+import {
   type AppTheme,
   type ThemePreference,
   useAppTheme,
@@ -27,47 +32,117 @@ type AppearanceScreenProps = {
 
 type AppearanceOption = {
   value: ThemePreference;
-  label: string;
-  description: string;
   icon: AppIconName;
 };
 
 const APPEARANCE_OPTIONS: readonly AppearanceOption[] = [
   {
     value: 'system',
-    label: 'System',
-    description: 'Automatically match your device setting.',
     icon: 'system',
   },
   {
     value: 'light',
-    label: 'Light',
-    description: 'Use the bright, warm appearance.',
     icon: 'light',
   },
   {
     value: 'dark',
-    label: 'Dark',
-    description: 'Use the low-light appearance.',
     icon: 'dark',
   },
 ];
 
+type LanguageOption = {
+  value: LanguagePreference;
+  code: string;
+};
+
+const LANGUAGE_OPTIONS: readonly LanguageOption[] = [
+  { value: 'system', code: 'AUTO' },
+  { value: 'mk', code: 'MK' },
+  { value: 'en', code: 'EN' },
+];
+
 export function AppearanceScreen({ onBack }: AppearanceScreenProps) {
   const {
-    hasHydrated,
+    hasHydrated: themeHasHydrated,
     preference,
     setPreference,
     systemMode,
     theme,
   } = useAppTheme();
+  const {
+    hasHydrated: languageHasHydrated,
+    language,
+    preference: languagePreference,
+    setPreference: setLanguagePreference,
+    systemLanguage,
+    t,
+  } = useLocalization();
   const { width } = useWindowDimensions();
   const isCompact = width < 360;
   const styles = useMemo(
     () => createStyles(theme, isCompact),
     [isCompact, theme],
   );
-  const systemModeLabel = systemMode === 'dark' ? 'Dark' : 'Light';
+  const systemModeLabel = systemMode === 'dark' ? t('Dark') : t('Light');
+  const selectedThemeLabel = preference === 'dark' ? t('Dark') : t('Light');
+  const systemLanguageLabel =
+    systemLanguage === 'mk' ? t('Macedonian') : t('English');
+  const selectedLanguageLabel =
+    language === 'mk' ? t('Macedonian') : t('English');
+
+  const getAppearanceLabel = (value: ThemePreference) => {
+    if (value === 'dark') {
+      return t('Dark');
+    }
+
+    if (value === 'light') {
+      return t('Light');
+    }
+
+    return t('System');
+  };
+
+  const getAppearanceDescription = (value: ThemePreference) => {
+    if (value === 'dark') {
+      return t('Use the low-light appearance.');
+    }
+
+    if (value === 'light') {
+      return t('Use the bright, warm appearance.');
+    }
+
+    return `${t('Automatically match your device setting.')} ${t(
+      'Currently {mode}.',
+      { mode: systemModeLabel.toLocaleLowerCase() },
+    )}`;
+  };
+
+  const getLanguageLabel = (value: LanguagePreference) => {
+    if (value === 'mk') {
+      return t('Macedonian');
+    }
+
+    if (value === 'en') {
+      return t('English');
+    }
+
+    return t('System');
+  };
+
+  const getLanguageDescription = (value: LanguagePreference) => {
+    if (value === 'mk') {
+      return t('Use Macedonian throughout the app.');
+    }
+
+    if (value === 'en') {
+      return t('Use English throughout the app.');
+    }
+
+    return `${t('Use your device language when it is supported.')} ${t(
+      'Your device language is currently {language}.',
+      { language: systemLanguageLabel },
+    )}`;
+  };
 
   return (
     <ScrollView
@@ -77,48 +152,59 @@ export function AppearanceScreen({ onBack }: AppearanceScreenProps) {
     >
       <View style={styles.content}>
         <AppHeader
-          backLabel="Parking"
+          backLabel={t('Parking')}
           onBack={onBack}
-          subtitle="Choose what feels most comfortable. Changes apply immediately."
-          title="Appearance"
+          subtitle={t(
+            'Choose what feels most comfortable. Changes apply immediately.',
+          )}
+          title={t('Appearance')}
           variant="back"
         />
 
         <View style={styles.sectionHeading}>
-          <Text style={styles.sectionTitle}>Theme</Text>
+          <Text style={styles.sectionTitle}>{t('Theme')}</Text>
           <StatusBadge
-            label={hasHydrated ? 'Saved on this device' : 'Restoring preference'}
-            tone={hasHydrated ? 'success' : 'neutral'}
+            label={
+              themeHasHydrated
+                ? isPublicDemoEnabled
+                  ? t('Temporary demo setting')
+                  : t('Saved on this device')
+                : t('Restoring preference')
+            }
+            tone={themeHasHydrated ? 'success' : 'neutral'}
           />
         </View>
 
         <Card padding="none" style={styles.optionsCard}>
-          <View accessibilityRole="radiogroup">
+          <View
+            accessibilityLabel={t('Theme')}
+            accessibilityRole="radiogroup"
+          >
             {APPEARANCE_OPTIONS.map((option, index) => {
               const isSelected = preference === option.value;
-              const description =
-                option.value === 'system'
-                  ? `${option.description} Currently ${systemModeLabel.toLowerCase()}.`
-                  : option.description;
+              const label = getAppearanceLabel(option.value);
+              const description = getAppearanceDescription(option.value);
 
               return (
                 <View key={option.value}>
                   {index > 0 ? <View style={styles.separator} /> : null}
                   <Pressable
                     accessibilityHint={description}
-                    accessibilityLabel={`${option.label} appearance`}
+                    accessibilityLabel={t('{label} appearance', {
+                      label,
+                    })}
                     accessibilityRole="radio"
                     accessibilityState={{
                       checked: isSelected,
-                      disabled: !hasHydrated,
+                      disabled: !themeHasHydrated,
                     }}
-                    disabled={!hasHydrated}
+                    disabled={!themeHasHydrated}
                     onPress={() => setPreference(option.value)}
                     style={({ pressed }) => [
                       styles.option,
                       isSelected && styles.optionSelected,
                       pressed && styles.optionPressed,
-                      !hasHydrated && styles.optionDisabled,
+                      !themeHasHydrated && styles.optionDisabled,
                     ]}
                   >
                     <View
@@ -141,9 +227,9 @@ export function AppearanceScreen({ onBack }: AppearanceScreenProps) {
                     </View>
                     <View style={styles.optionCopy}>
                       <View style={styles.optionTitleRow}>
-                        <Text style={styles.optionTitle}>{option.label}</Text>
+                        <Text style={styles.optionTitle}>{label}</Text>
                         {isSelected ? (
-                          <Text style={styles.selectedText}>Selected</Text>
+                          <Text style={styles.selectedText}>{t('Selected')}</Text>
                         ) : null}
                       </View>
                       <Text style={styles.optionDescription}>{description}</Text>
@@ -167,21 +253,166 @@ export function AppearanceScreen({ onBack }: AppearanceScreenProps) {
         <Card
           accessibilityLabel={
             preference === 'system'
-              ? `Following device appearance. Your device is currently using ${systemModeLabel} mode.`
-              : `${preference === 'dark' ? 'Dark' : 'Light'} appearance selected.`
+              ? t(
+                  'Following device appearance. Your device is currently using {mode} mode.',
+                  { mode: systemModeLabel },
+                )
+              : t('{mode} appearance selected.', {
+                  mode: selectedThemeLabel,
+                })
           }
           padding="compact"
           tone={preference === 'system' ? 'accent' : 'default'}
         >
           <Text style={styles.statusTitle}>
             {preference === 'system'
-              ? 'Following your device'
-              : `${preference === 'dark' ? 'Dark' : 'Light'} is selected`}
+              ? t('Following your device')
+              : t('{mode} is selected', {
+                  mode: selectedThemeLabel,
+                })}
           </Text>
           <Text style={styles.statusDescription}>
             {preference === 'system'
-              ? `Your device is currently using ${systemModeLabel} mode. Parking Bitola will update automatically when that changes.`
-              : 'Parking Bitola will keep this appearance until you choose another option. No restart is needed.'}
+              ? t(
+                  'Your device is currently using {mode} mode. Parking Bitola will update automatically when that changes.',
+                  { mode: systemModeLabel },
+                )
+              : t(
+                  'Parking Bitola will keep this appearance until you choose another option. No restart is needed.',
+                )}
+          </Text>
+        </Card>
+
+        <View style={styles.sectionHeading}>
+          <Text style={styles.sectionTitle}>{t('Language')}</Text>
+          <StatusBadge
+            label={
+              languageHasHydrated
+                ? isPublicDemoEnabled
+                  ? t('Temporary demo setting')
+                  : t('Saved on this device')
+                : t('Restoring preference')
+            }
+            tone={languageHasHydrated ? 'success' : 'neutral'}
+          />
+        </View>
+
+        <Card padding="none" style={styles.optionsCard}>
+          <View
+            accessibilityLabel={t('Language')}
+            accessibilityRole="radiogroup"
+          >
+            {LANGUAGE_OPTIONS.map((option, index) => {
+              const isSelected = languagePreference === option.value;
+              const label = getLanguageLabel(option.value);
+              const description = getLanguageDescription(option.value);
+
+              return (
+                <View key={option.value}>
+                  {index > 0 ? <View style={styles.separator} /> : null}
+                  <Pressable
+                    accessibilityHint={description}
+                    accessibilityLabel={t('{label} language', {
+                      label,
+                    })}
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      checked: isSelected,
+                      disabled: !languageHasHydrated,
+                    }}
+                    disabled={!languageHasHydrated}
+                    onPress={() => setLanguagePreference(option.value)}
+                    style={({ pressed }) => [
+                      styles.option,
+                      isSelected && styles.optionSelected,
+                      pressed && styles.optionPressed,
+                      !languageHasHydrated && styles.optionDisabled,
+                    ]}
+                  >
+                    <View
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants"
+                      style={[
+                        styles.optionIcon,
+                        isSelected && styles.optionIconSelected,
+                      ]}
+                    >
+                      {option.value === 'system' ? (
+                        <AppIcon
+                          color={
+                            isSelected
+                              ? theme.colors.accentText
+                              : theme.colors.textSecondary
+                          }
+                          name="system"
+                          size={21}
+                        />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.languageCode,
+                            isSelected && styles.languageCodeSelected,
+                          ]}
+                        >
+                          {option.code}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.optionCopy}>
+                      <View style={styles.optionTitleRow}>
+                        <Text style={styles.optionTitle}>{label}</Text>
+                        {isSelected ? (
+                          <Text style={styles.selectedText}>{t('Selected')}</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.optionDescription}>{description}</Text>
+                    </View>
+                    <AppIcon
+                      color={
+                        isSelected
+                          ? theme.colors.accent
+                          : theme.colors.borderStrong
+                      }
+                      name={isSelected ? 'selected' : 'unselected'}
+                      size={24}
+                    />
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        </Card>
+
+        <Card
+          accessibilityLabel={
+            languagePreference === 'system'
+              ? `${t('Following device language')}. ${t(
+                  'Your device language is currently {language}.',
+                  { language: systemLanguageLabel },
+                )}`
+              : t('{language} is selected', {
+                  language: selectedLanguageLabel,
+                })
+          }
+          padding="compact"
+          tone={languagePreference === 'system' ? 'accent' : 'default'}
+        >
+          <Text style={styles.statusTitle}>
+            {languagePreference === 'system'
+              ? t('Following your device language')
+              : t('{language} is selected', {
+                  language: selectedLanguageLabel,
+                })}
+          </Text>
+          <Text style={styles.statusDescription}>
+            {languagePreference === 'system'
+              ? t('Your device language is currently {language}.', {
+                  language: systemLanguageLabel,
+                })
+              : t(
+                  'Parking Bitola will use {language} until you choose another language.',
+                  { language: selectedLanguageLabel },
+                )}
           </Text>
         </Card>
       </View>
@@ -277,6 +508,13 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
     },
     selectedText: {
       ...theme.typography.overline,
+      color: theme.colors.accentText,
+    },
+    languageCode: {
+      ...theme.typography.overline,
+      color: theme.colors.textSecondary,
+    },
+    languageCodeSelected: {
       color: theme.colors.accentText,
     },
     statusTitle: {

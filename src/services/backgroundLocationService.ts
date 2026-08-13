@@ -3,6 +3,12 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { Platform } from "react-native";
 
+import {
+  getNativeAppLanguage,
+  getSystemNativeAppLanguage,
+  type NativeAppLanguage,
+} from "../localization/nativeLocale";
+
 export const PARKING_DEPARTURE_LOCATION_TASK_NAME =
   "parking-departure-location-task";
 
@@ -19,15 +25,38 @@ const COMMON_LOCATION_OPTIONS: Location.LocationTaskOptions = {
  * thresholds. Expo batches background readings only after both deferred
  * thresholds are satisfied, so callers must process every location timestamp.
  */
-export const PARKING_DEPARTURE_LOCATION_OPTIONS: Location.LocationTaskOptions =
-  Platform.select<Location.LocationTaskOptions>({
+type ParkingForegroundServiceCopy = {
+  notificationTitle: string;
+  notificationBody: string;
+};
+
+const PARKING_FOREGROUND_SERVICE_COPY: Record<
+  NativeAppLanguage,
+  ParkingForegroundServiceCopy
+> = {
+  en: {
+    notificationTitle: "Parking reminder active",
+    notificationBody: "Checking whether you leave your parked location.",
+  },
+  mk: {
+    notificationTitle: "Потсетникот за паркирање е активен",
+    notificationBody:
+      "Проверуваме дали ја напуштате локацијата каде што паркиравте.",
+  },
+};
+
+function createParkingDepartureLocationOptions(
+  language: NativeAppLanguage,
+): Location.LocationTaskOptions {
+  const foregroundServiceCopy = PARKING_FOREGROUND_SERVICE_COPY[language];
+
+  return Platform.select<Location.LocationTaskOptions>({
     android: {
       ...COMMON_LOCATION_OPTIONS,
       timeInterval: 30_000,
       foregroundService: {
-        notificationTitle: "Parking reminder active",
-        notificationBody:
-          "Checking whether you leave your parked location.",
+        notificationTitle: foregroundServiceCopy.notificationTitle,
+        notificationBody: foregroundServiceCopy.notificationBody,
         killServiceOnDestroy: false,
       },
     },
@@ -39,6 +68,14 @@ export const PARKING_DEPARTURE_LOCATION_OPTIONS: Location.LocationTaskOptions =
     },
     default: COMMON_LOCATION_OPTIONS,
   });
+}
+
+/**
+ * Synchronous export retained for callers that inspect the defaults. Starting
+ * Android monitoring resolves persisted language again immediately beforehand.
+ */
+export const PARKING_DEPARTURE_LOCATION_OPTIONS: Location.LocationTaskOptions =
+  createParkingDepartureLocationOptions(getSystemNativeAppLanguage());
 
 export type BackgroundLocationErrorCode =
   | "unsupported-platform"
@@ -474,9 +511,16 @@ export function startParkingDepartureMonitoring(): Promise<
         return { success: true, value: "already-started" };
       }
 
+      const locationOptions =
+        Platform.OS === "android"
+          ? createParkingDepartureLocationOptions(
+              await getNativeAppLanguage(),
+            )
+          : PARKING_DEPARTURE_LOCATION_OPTIONS;
+
       await Location.startLocationUpdatesAsync(
         PARKING_DEPARTURE_LOCATION_TASK_NAME,
-        PARKING_DEPARTURE_LOCATION_OPTIONS,
+        locationOptions,
       );
 
       return { success: true, value: "started" };

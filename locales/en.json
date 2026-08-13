@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Parking Bitola",
+    "NSLocationWhenInUseUsageDescription": "Allow Parking Bitola to use your location to detect nearby test parking zones and remember where parking starts.",
+    "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Parking Bitola to use your location in the background so it can remind you if you leave while parking is active."
+  },
+  "android": {
+    "app_name": "Parking Bitola"
+  }
+}

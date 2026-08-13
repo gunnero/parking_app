@@ -3,25 +3,30 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { publicDemoAwareStateStorage } from "../demo/publicDemoEnvironment";
-import type { ThemePreference } from "../theme/types";
 
-export const THEME_PREFERENCE_STORAGE_KEY = "parkingapp-theme-preference";
+export type AppLanguage = "en" | "mk";
+export type LanguagePreference = "system" | AppLanguage;
 
-export interface ThemeStoreState {
-  preference: ThemePreference;
+export const LANGUAGE_PREFERENCE_STORAGE_KEY =
+  "parkingapp-language-preference";
+
+export interface LanguageStoreState {
+  preference: LanguagePreference;
   hasHydrated: boolean;
-  setPreference: (preference: ThemePreference) => void;
+  setPreference: (preference: LanguagePreference) => void;
 }
 
-type PersistedThemeState = Pick<ThemeStoreState, "preference">;
+type PersistedLanguageState = Pick<LanguageStoreState, "preference">;
 
-export function isThemePreference(value: unknown): value is ThemePreference {
-  return value === "system" || value === "light" || value === "dark";
+export function isLanguagePreference(
+  value: unknown,
+): value is LanguagePreference {
+  return value === "system" || value === "en" || value === "mk";
 }
 
 let markHydrationFinished: (() => void) | undefined;
 
-export const useThemeStore = create<ThemeStoreState>()(
+export const useLanguageStore = create<LanguageStoreState>()(
   persist(
     (set) => {
       markHydrationFinished = () => set({ hasHydrated: true });
@@ -30,33 +35,40 @@ export const useThemeStore = create<ThemeStoreState>()(
         preference: "system",
         hasHydrated: false,
         setPreference: (preference) => {
-          set({ preference: isThemePreference(preference) ? preference : "system" });
+          set({
+            preference: isLanguagePreference(preference)
+              ? preference
+              : "system",
+          });
         },
       };
     },
     {
-      name: THEME_PREFERENCE_STORAGE_KEY,
+      name: LANGUAGE_PREFERENCE_STORAGE_KEY,
       storage: createJSONStorage(() =>
         publicDemoAwareStateStorage(AsyncStorage),
       ),
-      partialize: (state): PersistedThemeState => ({
+      partialize: (state): PersistedLanguageState => ({
         preference: state.preference,
       }),
       merge: (persistedState, currentState) => {
         const storedPreference = (
-          persistedState as Partial<PersistedThemeState> | undefined
+          persistedState as Partial<PersistedLanguageState> | undefined
         )?.preference;
 
         return {
           ...currentState,
-          preference: isThemePreference(storedPreference)
+          preference: isLanguagePreference(storedPreference)
             ? storedPreference
             : "system",
         };
       },
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
-          useThemeStore.setState({ preference: "system", hasHydrated: true });
+          useLanguageStore.setState({
+            preference: "system",
+            hasHydrated: true,
+          });
           return;
         }
 

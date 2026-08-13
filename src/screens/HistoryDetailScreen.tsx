@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +17,9 @@ import {
   InfoRow,
   StatusBadge,
 } from '../components';
+import { isPublicDemoEnabled } from '../demo';
+import { useLocalization } from '../localization';
+import { requestConfirmation } from '../services/confirmationService';
 import { useParkingHistoryStore } from '../stores/parkingHistoryStore';
 import { type AppTheme, useAppTheme } from '../theme';
 import type { ParkingHistoryRecord } from '../types/parkingHistory';
@@ -35,7 +37,10 @@ export type HistoryDetailScreenProps = {
   recordId: string;
 };
 
-function formatTrustedCost(record: ParkingHistoryRecord): string | null {
+function formatTrustedCost(
+  record: ParkingHistoryRecord,
+  locale: string,
+): string | null {
   const cost = getTrustedParkingHistoryFinalCost(record);
 
   if (!cost) {
@@ -43,12 +48,12 @@ function formatTrustedCost(record: ParkingHistoryRecord): string | null {
   }
 
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       currency: cost.currency,
       style: 'currency',
     }).format(cost.amount);
   } catch {
-    return `${cost.amount.toLocaleString()} ${cost.currency}`;
+    return `${cost.amount.toLocaleString(locale)} ${cost.currency}`;
   }
 }
 
@@ -72,6 +77,7 @@ export function HistoryDetailScreen({
   const clearOperationError = useParkingHistoryStore(
     (state) => state.clearOperationError,
   );
+  const { locale, t, translateMessage } = useLocalization();
   const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
   const isCompact = width < 360;
@@ -91,40 +97,39 @@ export function HistoryDetailScreen({
       return;
     }
 
-    Alert.alert(
-      'Delete parking record?',
-      `${record.zoneCode} · ${record.plate} will be permanently removed from this device. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete record',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              clearOperationError();
-              setLocalError(null);
-              setIsDeleting(true);
+    requestConfirmation({
+      title: t('Delete parking record?'),
+      message: t(
+        '{zoneCode} · {plate} will be permanently removed from this device. This cannot be undone.',
+        { plate: record.plate, zoneCode: record.zoneCode },
+      ),
+      cancelLabel: t('Cancel'),
+      confirmLabel: t('Delete record'),
+      destructive: true,
+      onConfirm: () => {
+        void (async () => {
+          clearOperationError();
+          setLocalError(null);
+          setIsDeleting(true);
 
-              try {
-                const result = await deleteRecord(record.id);
+          try {
+            const result = await deleteRecord(record.id);
 
-                if (result.success) {
-                  onBack();
-                } else {
-                  setLocalError(result.error);
-                }
-              } catch {
-                setLocalError(
-                  'This parking record could not be deleted. Please try again.',
-                );
-              } finally {
-                setIsDeleting(false);
-              }
-            })();
-          },
-        },
-      ],
-    );
+            if (result.success) {
+              onBack();
+            } else {
+              setLocalError(result.error);
+            }
+          } catch {
+            setLocalError(
+              'This parking record could not be deleted. Please try again.',
+            );
+          } finally {
+            setIsDeleting(false);
+          }
+        })();
+      },
+    });
   };
 
   let body;
@@ -134,9 +139,11 @@ export function HistoryDetailScreen({
       <Card padding="spacious">
         <View accessibilityLiveRegion="polite" style={styles.loadingState}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
-          <Text style={styles.loadingTitle}>Restoring parking details</Text>
+          <Text style={styles.loadingTitle}>
+            {t('Restoring parking details')}
+          </Text>
           <Text style={styles.loadingText}>
-            Loading this completed session from your device.
+            {t('Loading this completed session from your device.')}
           </Text>
         </View>
       </Card>
@@ -144,22 +151,25 @@ export function HistoryDetailScreen({
   } else if (!record) {
     body = (
       <EmptyState
-        actionLabel="Back to history"
-        description="This completed session may have been deleted from this device."
+        actionLabel={t('Back to history')}
+        description={t(
+          'This completed session may have been deleted from this device.',
+        )}
         icon="info"
         onAction={onBack}
-        title="Parking record not found"
+        title={t('Parking record not found')}
       />
     );
   } else {
-    const date = formatParkingDate(record.startedAt);
-    const started = formatParkingTime(record.startedAt);
-    const stopped = formatParkingTime(record.stoppedAt);
-    const duration = formatParkingDuration(record.durationSeconds);
+    const date = formatParkingDate(record.startedAt, locale);
+    const started = formatParkingTime(record.startedAt, locale);
+    const stopped = formatParkingTime(record.stoppedAt, locale);
+    const duration = formatParkingDuration(record.durationSeconds, locale);
     const durationAccessible = formatParkingDurationAccessible(
       record.durationSeconds,
+      locale,
     );
-    const finalCost = formatTrustedCost(record);
+    const finalCost = formatTrustedCost(record, locale);
 
     body = (
       <>
@@ -167,16 +177,18 @@ export function HistoryDetailScreen({
           <View style={styles.summaryStatusRow}>
             <StatusBadge
               icon={record.simulation ? 'development' : 'success'}
-              label={record.simulation ? 'SIMULATED SESSION' : 'COMPLETED'}
+              label={
+                record.simulation ? t('SIMULATED SESSION') : t('COMPLETED')
+              }
               tone={record.simulation ? 'development' : 'success'}
             />
           </View>
-          <Text style={styles.summaryLabel}>Zone</Text>
+          <Text style={styles.summaryLabel}>{t('Zone')}</Text>
           <Text selectable style={styles.summaryZone}>
             {record.zoneCode}
           </Text>
           {record.zoneName ? (
-            <Text style={styles.summaryZoneName}>{record.zoneName}</Text>
+            <Text style={styles.summaryZoneName}>{t(record.zoneName)}</Text>
           ) : null}
 
           <View style={styles.summaryDivider} />
@@ -190,7 +202,7 @@ export function HistoryDetailScreen({
               />
             </View>
             <View style={styles.summaryVehicleCopy}>
-              <Text style={styles.summaryLabel}>Vehicle</Text>
+              <Text style={styles.summaryLabel}>{t('Vehicle')}</Text>
               <Text selectable style={styles.summaryPlate}>
                 {record.plate}
               </Text>
@@ -204,37 +216,39 @@ export function HistoryDetailScreen({
 
           {record.simulation ? (
             <Text style={styles.simulationText}>
-              Development record. No real parking SMS was opened or sent.
+              {t(
+                'Development record. No real parking SMS was opened or sent.',
+              )}
             </Text>
           ) : null}
         </Card>
 
         <View style={styles.sectionHeading}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>
-            Session summary
+            {t('Session summary')}
           </Text>
         </View>
 
         <Card padding="none">
-          <InfoRow icon="clock" label="Date" value={date} />
+          <InfoRow icon="clock" label={t('Date')} value={date} />
           <View style={styles.rowDivider} />
-          <InfoRow icon="clock" label="Started" value={started} />
+          <InfoRow icon="clock" label={t('Started')} value={started} />
           <View style={styles.rowDivider} />
-          <InfoRow icon="success" label="Stopped" value={stopped} />
+          <InfoRow icon="success" label={t('Stopped')} value={stopped} />
           <View style={styles.rowDivider} />
           <InfoRow
             detail={durationAccessible}
             icon="timer"
-            label="Duration"
+            label={t('Duration')}
             value={duration}
           />
           {finalCost ? (
             <>
               <View style={styles.rowDivider} />
               <InfoRow
-                detail="Confirmed by the parking operator"
+                detail={t('Confirmed by the parking operator')}
                 icon="check"
-                label="Final cost"
+                label={t('Final cost')}
                 tone="success"
                 value={finalCost}
               />
@@ -244,16 +258,16 @@ export function HistoryDetailScreen({
           <InfoRow
             detail={
               record.simulation
-                ? 'Clearly separated from a real operator-confirmed session.'
+                ? t('Clearly separated from a real operator-confirmed session.')
                 : undefined
             }
             icon={record.simulation ? 'development' : 'parking'}
-            label="Session type"
+            label={t('Session type')}
             tone={record.simulation ? 'development' : 'neutral'}
             value={
               record.simulation
-                ? 'Simulated development session'
-                : 'Parking session'
+                ? t('Simulated development session')
+                : t('Parking session')
             }
           />
         </Card>
@@ -261,8 +275,10 @@ export function HistoryDetailScreen({
         <Card
           accessibilityLabel={
             record.startLocation
-              ? 'Parked location saved. Only the start location snapshot is stored. No route history is kept.'
-              : 'No parked location saved for this session.'
+              ? t(
+                  'Parked location saved. Only the start location snapshot is stored. No route history is kept.',
+                )
+              : t('No parked location saved for this session.')
           }
           padding="regular"
           tone={record.startLocation ? 'success' : 'default'}
@@ -295,13 +311,17 @@ export function HistoryDetailScreen({
                 }
               >
                 {record.startLocation
-                  ? 'Parked location saved'
-                  : 'No parked location saved'}
+                  ? t('Parked location saved')
+                  : t('No parked location saved')}
               </Text>
               <Text style={styles.locationText}>
                 {record.startLocation
-                  ? 'Only the parked start location is stored. No route history is kept.'
-                  : 'This completed session does not include a start-location snapshot.'}
+                  ? t(
+                      'Only the parked start location is stored. No route history is kept.',
+                    )
+                  : t(
+                      'This completed session does not include a start-location snapshot.',
+                    )}
               </Text>
             </View>
           </View>
@@ -310,19 +330,27 @@ export function HistoryDetailScreen({
         {isProtected || isReadOnly ? (
           <Card padding="compact" tone="warning">
             <Text style={styles.protectedTitle}>
-              {isProtected ? 'Current receipt protected' : 'History is read-only'}
+              {isProtected
+                ? t('Current receipt protected')
+                : t('History is read-only')}
             </Text>
             <Text style={styles.protectedText}>
               {isProtected
-                ? 'Finish this parking receipt with Done before deleting its history record.'
-                : 'This record was left unchanged because parking history could not be loaded safely.'}
+                ? t(
+                    'Finish this parking receipt with Done before deleting its history record.',
+                  )
+                : t(
+                    'This record was left unchanged because parking history could not be loaded safely.',
+                  )}
             </Text>
           </Card>
         ) : (
           <View style={styles.deleteSection}>
             <AppButton
-              accessibilityHint="Permanently removes this completed parking record from this device after confirmation."
-              label="Delete record"
+              accessibilityHint={t(
+                'Permanently removes this completed parking record from this device after confirmation.',
+              )}
+              label={t('Delete record')}
               leadingIcon="delete"
               loading={isDeleting}
               onPress={confirmDeleteRecord}
@@ -332,7 +360,9 @@ export function HistoryDetailScreen({
         )}
 
         <Text style={styles.privacyNote}>
-          This receipt is stored locally on this device.
+          {isPublicDemoEnabled
+            ? t('Temporary demo record · Resets when this page reloads.')
+            : t('This receipt is stored locally on this device.')}
         </Text>
       </>
     );
@@ -346,10 +376,10 @@ export function HistoryDetailScreen({
     >
       <View style={styles.content}>
         <AppHeader
-          backLabel="History"
+          backLabel={t('History')}
           onBack={onBack}
-          subtitle="Completed parking session summary."
-          title="Parking details"
+          subtitle={t('Completed parking session summary.')}
+          title={t('Parking details')}
           variant="back"
         />
 
@@ -357,9 +387,11 @@ export function HistoryDetailScreen({
           <View accessibilityLiveRegion="assertive">
             <Card padding="compact" tone="danger">
               <Text accessibilityRole="alert" style={styles.errorTitle}>
-                History needs attention
+                {t('History needs attention')}
               </Text>
-              <Text style={styles.errorText}>{visibleError}</Text>
+              <Text style={styles.errorText}>
+                {translateMessage(visibleError)}
+              </Text>
             </Card>
           </View>
         ) : null}

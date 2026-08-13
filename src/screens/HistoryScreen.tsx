@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,6 +17,9 @@ import {
   EmptyState,
   StatusBadge,
 } from '../components';
+import { isPublicDemoEnabled } from '../demo';
+import { useLocalization } from '../localization';
+import { requestConfirmation } from '../services/confirmationService';
 import { useParkingHistoryStore } from '../stores/parkingHistoryStore';
 import { type AppTheme, useAppTheme } from '../theme';
 import type { ParkingHistoryRecord } from '../types/parkingHistory';
@@ -35,7 +37,10 @@ export type HistoryScreenProps = {
   protectedSessionId?: string;
 };
 
-function formatTrustedCost(record: ParkingHistoryRecord): string | null {
+function formatTrustedCost(
+  record: ParkingHistoryRecord,
+  locale: string,
+): string | null {
   const cost = getTrustedParkingHistoryFinalCost(record);
 
   if (!cost) {
@@ -43,12 +48,12 @@ function formatTrustedCost(record: ParkingHistoryRecord): string | null {
   }
 
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       currency: cost.currency,
       style: 'currency',
     }).format(cost.amount);
   } catch {
-    return `${cost.amount.toLocaleString()} ${cost.currency}`;
+    return `${cost.amount.toLocaleString(locale)} ${cost.currency}`;
   }
 }
 
@@ -57,40 +62,47 @@ function HistoryRecordCard({
   onPress,
   record,
   styles,
+  t,
   theme,
+  locale,
 }: {
   isCompact: boolean;
   onPress: () => void;
   record: ParkingHistoryRecord;
   styles: HistoryStyles;
+  t: ReturnType<typeof useLocalization>['t'];
   theme: AppTheme;
+  locale: string;
 }) {
-  const date = formatParkingDate(record.startedAt);
-  const started = formatParkingTime(record.startedAt);
-  const stopped = formatParkingTime(record.stoppedAt);
-  const duration = formatParkingDuration(record.durationSeconds);
+  const date = formatParkingDate(record.startedAt, locale);
+  const started = formatParkingTime(record.startedAt, locale);
+  const stopped = formatParkingTime(record.stoppedAt, locale);
+  const duration = formatParkingDuration(record.durationSeconds, locale);
   const durationAccessible = formatParkingDurationAccessible(
     record.durationSeconds,
+    locale,
   );
-  const finalCost = formatTrustedCost(record);
+  const finalCost = formatTrustedCost(record, locale);
   const accessibilityLabel = [
-    record.simulation ? 'Simulated parking session' : 'Completed parking session',
-    `Zone ${record.zoneCode}`,
-    record.zoneName,
-    `Vehicle ${record.plate}`,
+    record.simulation
+      ? t('Simulated parking session')
+      : t('Completed parking session'),
+    t('Zone {code}', { code: record.zoneCode }),
+    record.zoneName ? t(record.zoneName) : null,
+    t('Vehicle {plate}', { plate: record.plate }),
     record.vehicleNickname,
     date,
-    `Started ${started}`,
-    `Stopped ${stopped}`,
+    t('Started {time}', { time: started }),
+    t('Stopped {time}', { time: stopped }),
     durationAccessible,
-    finalCost ? `Final cost ${finalCost}` : null,
+    finalCost ? t('Final cost {cost}', { cost: finalCost }) : null,
   ]
     .filter(Boolean)
     .join('. ');
 
   return (
     <Pressable
-      accessibilityHint="Opens the completed parking session details."
+      accessibilityHint={t('Opens the completed parking session details.')}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       onPress={onPress}
@@ -106,18 +118,18 @@ function HistoryRecordCard({
       >
         <View style={styles.recordHeader}>
           <View style={styles.zoneIdentity}>
-            <Text style={styles.overline}>Zone</Text>
+            <Text style={styles.overline}>{t('Zone')}</Text>
             <Text selectable style={styles.zoneCode}>
               {record.zoneCode}
             </Text>
             {record.zoneName ? (
-              <Text style={styles.zoneName}>{record.zoneName}</Text>
+              <Text style={styles.zoneName}>{t(record.zoneName)}</Text>
             ) : null}
           </View>
           {record.simulation ? (
             <StatusBadge
               icon="development"
-              label="SIMULATED SESSION"
+              label={t('SIMULATED SESSION')}
               tone="development"
             />
           ) : null}
@@ -160,7 +172,7 @@ function HistoryRecordCard({
 
         {finalCost ? (
           <View style={styles.costRow}>
-            <Text style={styles.costLabel}>Final cost</Text>
+            <Text style={styles.costLabel}>{t('Final cost')}</Text>
             <Text style={styles.costValue}>{finalCost}</Text>
           </View>
         ) : null}
@@ -189,6 +201,7 @@ export function HistoryScreen({
   const clearOperationError = useParkingHistoryStore(
     (state) => state.clearOperationError,
   );
+  const { locale, t, translateMessage } = useLocalization();
   const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
   const isCompact = width < 360;
@@ -206,38 +219,36 @@ export function HistoryScreen({
       return;
     }
 
-    Alert.alert(
-      'Clear parking history?',
-      'Every completed parking record will be permanently removed from this device. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear history',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              clearOperationError();
-              setLocalError(null);
-              setIsClearing(true);
+    requestConfirmation({
+      title: t('Clear parking history?'),
+      message: t(
+        'Every completed parking record will be permanently removed from this device. This cannot be undone.',
+      ),
+      cancelLabel: t('Cancel'),
+      confirmLabel: t('Clear history'),
+      destructive: true,
+      onConfirm: () => {
+        void (async () => {
+          clearOperationError();
+          setLocalError(null);
+          setIsClearing(true);
 
-              try {
-                const result = await clearHistory();
+          try {
+            const result = await clearHistory();
 
-                if (!result.success) {
-                  setLocalError(result.error);
-                }
-              } catch {
-                setLocalError(
-                  'Parking history could not be cleared. Please try again.',
-                );
-              } finally {
-                setIsClearing(false);
-              }
-            })();
-          },
-        },
-      ],
-    );
+            if (!result.success) {
+              setLocalError(result.error);
+            }
+          } catch {
+            setLocalError(
+              'Parking history could not be cleared. Please try again.',
+            );
+          } finally {
+            setIsClearing(false);
+          }
+        })();
+      },
+    });
   };
 
   return (
@@ -248,10 +259,14 @@ export function HistoryScreen({
     >
       <View style={styles.content}>
         <AppHeader
-          backLabel="Parking"
+          backLabel={t('Parking')}
           onBack={onBack}
-          subtitle="Completed sessions saved only on this device."
-          title="Parking history"
+          subtitle={
+            isPublicDemoEnabled
+              ? t('Temporary demo history · Resets on reload')
+              : t('Completed sessions saved only on this device.')
+          }
+          title={t('Parking history')}
           variant="back"
         />
 
@@ -259,9 +274,11 @@ export function HistoryScreen({
           <View accessibilityLiveRegion="assertive">
             <Card padding="compact" tone="danger">
               <Text accessibilityRole="alert" style={styles.errorTitle}>
-                History needs attention
+                {t('History needs attention')}
               </Text>
-              <Text style={styles.errorText}>{visibleError}</Text>
+              <Text style={styles.errorText}>
+                {translateMessage(visibleError)}
+              </Text>
             </Card>
           </View>
         ) : null}
@@ -273,26 +290,31 @@ export function HistoryScreen({
               style={styles.loadingState}
             >
               <ActivityIndicator color={theme.colors.accent} size="large" />
-              <Text style={styles.loadingTitle}>Restoring parking history</Text>
+              <Text style={styles.loadingTitle}>
+                {t('Restoring parking history')}
+              </Text>
               <Text style={styles.loadingText}>
-                Loading completed sessions from this device.
+                {t('Loading completed sessions from this device.')}
               </Text>
             </View>
           </Card>
         ) : records.length === 0 ? (
           <EmptyState
-            description="Completed parking sessions will appear here."
+            description={t('Completed parking sessions will appear here.')}
             icon="clock"
-            title="No parking history yet"
+            title={t('No parking history yet')}
           />
         ) : (
           <>
             <View style={styles.listHeading}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>
-                Completed sessions
+                {t('Completed sessions')}
               </Text>
               <StatusBadge
-                label={`${records.length} ${records.length === 1 ? 'session' : 'sessions'}`}
+                label={t(
+                  records.length === 1 ? '{count} session' : '{count} sessions',
+                  { count: records.length },
+                )}
                 tone="neutral"
               />
             </View>
@@ -305,7 +327,9 @@ export function HistoryScreen({
                   onPress={() => onSelectRecord(record.id)}
                   record={record}
                   styles={styles}
+                  t={t}
                   theme={theme}
+                  locale={locale}
                 />
               ))}
             </View>
@@ -314,14 +338,20 @@ export function HistoryScreen({
               {hasProtectedRecord || isReadOnly ? (
                 <Text style={styles.protectedText}>
                   {hasProtectedRecord
-                    ? 'Finish the current parking receipt before clearing history.'
-                    : 'History is read-only, so stored records were left unchanged.'}
+                    ? t(
+                        'Finish the current parking receipt before clearing history.',
+                      )
+                    : t(
+                        'History is read-only, so stored records were left unchanged.',
+                      )}
                 </Text>
               ) : null}
               <AppButton
-                accessibilityHint="Permanently removes every completed parking record from this device after confirmation."
+                accessibilityHint={t(
+                  'Permanently removes every completed parking record from this device after confirmation.',
+                )}
                 disabled={hasProtectedRecord || isReadOnly}
-                label="Clear history"
+                label={t('Clear history')}
                 leadingIcon="delete"
                 loading={isClearing}
                 onPress={confirmClearHistory}
@@ -330,7 +360,11 @@ export function HistoryScreen({
             </View>
 
             <Text style={styles.privacyNote}>
-              Parking history stays on this device until you delete it.
+              {isPublicDemoEnabled
+                ? t('Temporary demo history · Resets when this page reloads.')
+                : t(
+                    'Parking history stays on this device until you delete it.',
+                  )}
             </Text>
           </>
         )}

@@ -20,6 +20,8 @@ import {
   StatusBadge,
 } from '../components';
 import { TEST_PARKING_ZONES } from '../data/testParkingZones';
+import { isDemoLocation, isPublicDemoEnabled } from '../demo';
+import { useLocalization } from '../localization';
 import {
   runStartParkingSmsFlow,
   type ParkingSessionSmsFlowResult,
@@ -47,6 +49,7 @@ export function HomeScreen({
   onOpenAppearance,
 }: HomeScreenProps) {
   const { theme } = useAppTheme();
+  const { t, translateMessage } = useLocalization();
   const { width } = useWindowDimensions();
   const isCompact = width < 360;
   const shouldStackStatus = width < 360;
@@ -104,9 +107,11 @@ export function HomeScreen({
   const isRequestingPermission = permissionState === 'requesting';
   const isPermissionDenied = permissionState === 'denied';
   const isRefreshing = isRequestingPermission || isLoading;
+  const isUsingDemoLocation =
+    isPublicDemoEnabled && isDemoLocation(latitude, longitude);
 
-  let gpsValue = 'Not checked';
-  let gpsDetail = 'Use your location when you are ready.';
+  let gpsValue = t('Not checked');
+  let gpsDetail = t('Use your location when you are ready.');
   let gpsTone:
     | 'neutral'
     | 'accent'
@@ -115,43 +120,57 @@ export function HomeScreen({
     | 'danger' = 'neutral';
 
   if (isRequestingPermission) {
-    gpsValue = 'Requesting access';
-    gpsDetail = 'Choose whether to share your foreground location.';
+    gpsValue = t('Requesting access');
+    gpsDetail = t('Choose whether to share your foreground location.');
     gpsTone = 'warning';
   } else if (isPermissionDenied) {
-    gpsValue = 'Location access off';
-    gpsDetail = 'Open Settings to allow foreground location.';
+    gpsValue = t('Location access off');
+    gpsDetail = t('Open Settings to allow foreground location.');
     gpsTone = 'danger';
   } else if (isLoading) {
-    gpsValue = 'Finding location';
-    gpsDetail = 'This can take a moment outdoors or near a window.';
+    gpsValue = t('Finding location');
+    gpsDetail = t('This can take a moment outdoors or near a window.');
     gpsTone = 'warning';
   } else if (locationError) {
-    gpsValue = 'GPS unavailable';
+    gpsValue = t('GPS unavailable');
     gpsDetail =
       locationError.code === 'LOCATION_SERVICES_DISABLED'
-        ? 'Turn on Location Services, then try again.'
-        : 'We could not get a current location. Try again.';
+        ? t('Turn on Location Services, then try again.')
+        : t('We could not get a current location. Try again.');
     gpsTone = 'danger';
+  } else if (isUsingDemoLocation) {
+    gpsValue = t('Sample location');
+    gpsDetail = t('Demo location — not your current GPS position.');
+    gpsTone = 'accent';
   } else if (hasCoordinates) {
-    gpsValue = 'GPS ready';
+    gpsValue = t('GPS ready');
     gpsDetail =
       accuracy === null
-        ? 'Current location is available.'
-        : `Accurate to about ${Math.max(1, Math.round(accuracy))} m.`;
+        ? t('Current location is available.')
+        : t('Accurate to about {accuracy} m.', {
+            accuracy: Math.max(1, Math.round(accuracy)),
+          });
     gpsTone = 'success';
   }
 
   const reminderValue = !reminderHasHydrated
-    ? 'Checking'
+    ? t('Checking')
     : reminderEnabled
-      ? 'On for sessions'
-      : 'Off';
+      ? t('On for sessions')
+      : t('Off');
   const reminderTone = !reminderHasHydrated
     ? 'neutral'
     : reminderEnabled
       ? 'success'
       : 'neutral';
+  const vehicleDetail = !hasHydrated
+    ? t('Reading saved vehicle data.')
+    : isPublicDemoEnabled && defaultVehicle
+      ? t('Sample vehicle')
+      : defaultVehicle?.nickname ??
+        (defaultVehicle
+          ? t('Ready for parking')
+          : t('Add a vehicle to continue.'));
 
   const handleRefreshLocation = () => {
     setSettingsError(null);
@@ -281,20 +300,20 @@ export function HomeScreen({
   let startUnavailable: string | null = null;
 
   if (!hasHydrated) {
-    startUnavailable = 'Loading your saved vehicle…';
+    startUnavailable = t('Loading your saved vehicle…');
   } else if (!defaultVehicle) {
-    startUnavailable = 'Add or select a default vehicle before parking.';
+    startUnavailable = t('Add or select a default vehicle before parking.');
   } else if (!detectedZone) {
     startUnavailable = hasCoordinates
-      ? 'Parking cannot start until a supported zone is identified.'
-      : 'Use your location to identify a supported parking zone.';
+      ? t('Parking cannot start until a supported zone is identified.')
+      : t('Use your location to identify a supported parking zone.');
   } else if (!smsPreview) {
-    startUnavailable = 'The parking request preview is unavailable.';
+    startUnavailable = t('The parking request preview is unavailable.');
   }
 
   return (
     <ScrollView
-      accessibilityLabel="Parking home"
+      accessibilityLabel={t('Parking home')}
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
@@ -306,11 +325,33 @@ export function HomeScreen({
         ]}
       >
         <AppHeader
-          appearanceLabel={isCompact ? 'Theme' : 'Appearance'}
+          appearanceLabel={isCompact ? t('Theme') : t('Appearance')}
           onAppearance={onOpenAppearance}
-          title="Parking Bitola"
+          title={t('Parking Bitola')}
           variant="appearance"
         />
+
+        <Card
+          accessibilityLabel={`${t('Demo by Kalveri — not an official parking service')}. ${t('Test data only · No real SMS or parking activation')}.`}
+          padding="compact"
+          tone="development"
+        >
+          <View style={styles.demoNotice}>
+            <AppIcon
+              color={theme.colors.developmentText}
+              name="shield"
+              size={20}
+            />
+            <View style={styles.demoNoticeCopy}>
+              <Text style={styles.demoNoticeTitle}>
+                {t('Demo by Kalveri — not an official parking service')}
+              </Text>
+              <Text style={styles.demoNoticeDetail}>
+                {t('Test data only · No real SMS or parking activation')}
+              </Text>
+            </View>
+          </View>
+        </Card>
 
         <Card elevated padding={isCompact ? 'regular' : 'spacious'}>
           <View accessibilityLiveRegion="polite" style={styles.zoneHero}>
@@ -319,7 +360,7 @@ export function HomeScreen({
                 <View style={styles.zoneBadgeWrap}>
                   <StatusBadge
                     icon="development"
-                    label="DEVELOPMENT MODE"
+                    label={t('DEVELOPMENT MODE')}
                     tone="development"
                   />
                 </View>
@@ -327,7 +368,7 @@ export function HomeScreen({
                   accessibilityRole="header"
                   style={styles.zoneTitle}
                 >
-                  Simulated zone
+                  {t('Simulated zone')}
                 </Text>
                 <Text
                   adjustsFontSizeToFit
@@ -354,7 +395,7 @@ export function HomeScreen({
                   <View style={styles.zoneRule} />
                 </View>
                 <Text style={styles.zoneDescription}>
-                  Synthetic development boundary for app testing.
+                  {t('Synthetic development boundary for app testing.')}
                 </Text>
               </>
             ) : (
@@ -362,13 +403,13 @@ export function HomeScreen({
                 <View style={styles.zoneBadgeWrap}>
                   <StatusBadge
                     icon={hasCoordinates ? 'location-off' : 'location'}
-                    label="CURRENT PARKING ZONE"
+                    label={t('CURRENT PARKING ZONE')}
                     tone={locationError ? 'warning' : 'neutral'}
                   />
                 </View>
                 {isRefreshing ? (
                   <ActivityIndicator
-                    accessibilityLabel="Finding parking zone"
+                    accessibilityLabel={t('Finding parking zone')}
                     color={theme.colors.accent}
                     size="large"
                   />
@@ -378,31 +419,41 @@ export function HomeScreen({
                   style={styles.zoneEmptyTitle}
                 >
                   {isRefreshing
-                    ? 'Finding your parking zone'
+                    ? t('Finding your parking zone')
                     : hasCoordinates
-                      ? 'Parking zone not identified'
+                      ? t('Parking zone not identified')
                       : isPermissionDenied
-                        ? 'Location access needed'
+                        ? t('Location access needed')
                         : locationError
-                          ? 'Location unavailable'
-                          : 'Find your parking zone'}
+                          ? t('Location unavailable')
+                          : t('Find your parking zone')}
                 </Text>
                 <Text style={styles.zoneDescription}>
                   {isRefreshing
-                    ? 'Getting a current foreground location. This can take a moment.'
+                    ? t(
+                        'Getting a current foreground location. This can take a moment.',
+                      )
                     : hasCoordinates
-                      ? 'We know your location, but verified parking-zone mapping is not available here yet.'
+                      ? t(
+                          'We know your location, but verified parking-zone mapping is not available here yet.',
+                        )
                       : isPermissionDenied
-                        ? 'Allow foreground location in Settings so the app can identify your parking zone.'
+                        ? t(
+                            'Allow foreground location in Settings so the app can identify your parking zone.',
+                          )
                         : locationError
-                          ? 'Check Location Services and try again when you are ready.'
-                          : 'Your foreground location is used only when you choose to identify a parking zone.'}
+                          ? t(
+                              'Check Location Services and try again when you are ready.',
+                            )
+                          : t(
+                              'Your foreground location is used only when you choose to identify a parking zone.',
+                            )}
                 </Text>
                 {hasCoordinates && !isRefreshing ? (
                   <AppButton
                     compact
                     fullWidth={false}
-                    label="Refresh location"
+                    label={t('Refresh location')}
                     leadingIcon="refresh"
                     onPress={handleRefreshLocation}
                     variant="secondary"
@@ -416,26 +467,34 @@ export function HomeScreen({
         {!hasCoordinates && !isLoading ? (
           isRequestingPermission ? (
             <PermissionCard
-              description="Choose whether to share your foreground location so we can identify your parking zone."
+              description={t(
+                'Choose whether to share your foreground location so we can identify your parking zone.',
+              )}
               loading
               state="requesting"
-              title="Location access"
+              title={t('Location access')}
             />
           ) : isPermissionDenied ? (
             <PermissionCard
-              actionLabel="Open Settings"
-              description="Enable foreground location for Parking Bitola, then return and refresh your location."
+              actionLabel={t('Open Settings')}
+              description={t(
+                'Enable foreground location for Parking Bitola, then return and refresh your location.',
+              )}
               onAction={() => void handleOpenSettings()}
               state="denied"
-              title="Location access is off"
+              title={t('Location access is off')}
             />
           ) : locationError ? (
             <PermissionCard
-              actionLabel="Try again"
+              actionLabel={t('Try again')}
               description={
                 locationError.code === 'LOCATION_SERVICES_DISABLED'
-                  ? 'Turn on Location Services to identify your parking zone.'
-                  : 'Your current location could not be read. Check your signal and try again.'
+                  ? t(
+                      'Turn on Location Services to identify your parking zone.',
+                    )
+                  : t(
+                      'Your current location could not be read. Check your signal and try again.',
+                    )
               }
               onAction={handleRefreshLocation}
               state={
@@ -445,17 +504,19 @@ export function HomeScreen({
               }
               title={
                 locationError.code === 'LOCATION_SERVICES_DISABLED'
-                  ? 'Location Services are off'
-                  : 'Location is unavailable'
+                  ? t('Location Services are off')
+                  : t('Location is unavailable')
               }
             />
           ) : (
             <PermissionCard
-              actionLabel="Use my location"
-              description="Location is used to identify your parking zone. Permission is requested only after you continue."
+              actionLabel={t('Use my location')}
+              description={t(
+                'Location is used to identify your parking zone. Permission is requested only after you continue.',
+              )}
               onAction={handleRefreshLocation}
               state="idle"
-              title="Find your parking zone"
+              title={t('Find your parking zone')}
             />
           )
         ) : null}
@@ -463,7 +524,7 @@ export function HomeScreen({
         {settingsError ? (
           <Card padding="compact" tone="danger">
             <Text accessibilityRole="alert" style={styles.errorText}>
-              {settingsError}
+              {translateMessage(settingsError)}
             </Text>
           </Card>
         ) : null}
@@ -473,9 +534,14 @@ export function HomeScreen({
             accessibilityLabel={
               hasHydrated
                 ? defaultVehicle
-                  ? `Current vehicle ${defaultVehicle.plate}${defaultVehicle.nickname ? `, ${defaultVehicle.nickname}` : ''}. Default vehicle.`
-                  : 'No default vehicle selected.'
-                : 'Loading current vehicle.'
+                  ? t('Current vehicle {plate}{nickname}. Default vehicle.', {
+                      nickname: defaultVehicle.nickname
+                        ? `, ${defaultVehicle.nickname}`
+                        : '',
+                      plate: defaultVehicle.plate,
+                    })
+                  : t('No default vehicle selected.')
+                : t('Loading current vehicle.')
             }
             accessible
             style={styles.vehicleRow}
@@ -484,24 +550,19 @@ export function HomeScreen({
               <AppIcon color={theme.colors.accentText} name="car" size={28} />
             </View>
             <View style={styles.vehicleCopy}>
-              <Text style={styles.overline}>Current vehicle</Text>
+              <Text style={styles.overline}>{t('Current vehicle')}</Text>
               <Text selectable style={styles.vehiclePlate}>
                 {hasHydrated
-                  ? defaultVehicle?.plate ?? 'No vehicle selected'
-                  : 'Loading vehicle…'}
+                  ? defaultVehicle?.plate ?? t('No vehicle selected')
+                  : t('Loading vehicle…')}
               </Text>
               <Text style={styles.vehicleNickname}>
-                {!hasHydrated
-                  ? 'Reading saved vehicle data.'
-                  : defaultVehicle?.nickname ??
-                    (defaultVehicle
-                      ? 'Ready for parking'
-                      : 'Add a vehicle to continue.')}
+                {vehicleDetail}
               </Text>
             </View>
             {hasHydrated && defaultVehicle ? (
               <View style={styles.vehicleBadge}>
-                <StatusBadge label="DEFAULT" tone="accent" />
+                <StatusBadge label={t('DEFAULT')} tone="accent" />
               </View>
             ) : null}
           </View>
@@ -520,10 +581,12 @@ export function HomeScreen({
             ]}
           >
             <AppButton
-              accessibilityHint="Prepares a simulated parking session for the detected development zone"
-              accessibilityLabel="Start parking"
+              accessibilityHint={t(
+                'Prepares a simulated parking session for the detected development zone',
+              )}
+              accessibilityLabel={t('Start parking')}
               disabled={!canPrepareSession}
-              label="START PARKING"
+              label={t('START PARKING')}
               leadingIcon="parking"
               loading={isStarting}
               onPress={() => void handleStartParking()}
@@ -537,7 +600,7 @@ export function HomeScreen({
           {startError ? (
             <Card padding="compact" tone="danger">
               <Text accessibilityRole="alert" style={styles.errorText}>
-                {startError}
+                {translateMessage(startError)}
               </Text>
             </Card>
           ) : null}
@@ -550,7 +613,9 @@ export function HomeScreen({
                 size={19}
               />
               <Text style={styles.simulationText}>
-                Simulation only · TEST zones never open or send a real SMS.
+                {t(
+                  'Simulation only · TEST zones never open or send a real SMS.',
+                )}
               </Text>
             </View>
           ) : null}
@@ -565,7 +630,10 @@ export function HomeScreen({
             ]}
           >
             <View
-              accessibilityLabel={`GPS status. ${gpsValue}. ${gpsDetail}`}
+              accessibilityLabel={t(
+                'GPS status. {value}. {detail}',
+                { detail: gpsDetail, value: gpsValue },
+              )}
               accessible
               style={styles.statusBlock}
             >
@@ -584,8 +652,10 @@ export function HomeScreen({
               <View style={styles.statusCopy}>
                 <Text style={styles.statusLabel}>{gpsValue}</Text>
                 <Text numberOfLines={2} style={styles.statusDetail}>
-                  {hasCoordinates && accuracy !== null
-                    ? `About ${Math.max(1, Math.round(accuracy))} m accuracy`
+                  {hasCoordinates && accuracy !== null && !isUsingDemoLocation
+                    ? t('About {accuracy} m accuracy', {
+                        accuracy: Math.max(1, Math.round(accuracy)),
+                      })
                     : gpsDetail}
                 </Text>
               </View>
@@ -597,13 +667,17 @@ export function HomeScreen({
               ]}
             />
             <View
-              accessibilityLabel={`Parking reminder. ${reminderValue}. ${
-                reminderHasHydrated
-                  ? reminderEnabled
-                    ? 'Enabled for active parking sessions.'
-                    : 'Disabled in reminder settings.'
-                  : 'Reading your saved preference.'
-              }`}
+              accessibilityLabel={t(
+                'Parking reminder. {value}. {detail}',
+                {
+                  detail: reminderHasHydrated
+                    ? reminderEnabled
+                      ? t('Enabled for active parking sessions.')
+                      : t('Disabled in reminder settings.')
+                    : t('Reading your saved preference.'),
+                  value: reminderValue,
+                },
+              )}
               accessible
               style={styles.statusBlock}
             >
@@ -623,13 +697,13 @@ export function HomeScreen({
                 />
               </View>
               <View style={styles.statusCopy}>
-                <Text style={styles.statusLabel}>Parking reminder</Text>
+                <Text style={styles.statusLabel}>{t('Parking reminder')}</Text>
                 <Text numberOfLines={2} style={styles.statusDetail}>
                   {!reminderHasHydrated
-                    ? 'Checking preference'
+                    ? t('Checking preference')
                     : reminderEnabled
-                      ? 'On'
-                      : 'Off'}
+                      ? t('On')
+                      : t('Off')}
                 </Text>
               </View>
             </View>
@@ -638,8 +712,10 @@ export function HomeScreen({
 
         <Card padding="none">
           <Pressable
-            accessibilityHint="Opens completed parking sessions saved on this device"
-            accessibilityLabel="Parking history"
+            accessibilityHint={t(
+              'Opens completed parking sessions saved on this device',
+            )}
+            accessibilityLabel={t('Parking history')}
             accessibilityRole="button"
             onPress={onOpenHistory}
             style={({ pressed }) => [
@@ -655,9 +731,11 @@ export function HomeScreen({
               />
             </View>
             <View style={styles.detailsHeading}>
-              <Text style={styles.detailsTitle}>Parking history</Text>
+              <Text style={styles.detailsTitle}>{t('Parking history')}</Text>
               <Text style={styles.detailsSubtitle}>
-                Completed sessions saved on this device
+                {isPublicDemoEnabled
+                  ? t('Temporary demo history · Resets on reload')
+                  : t('Completed sessions saved on this device')}
               </Text>
             </View>
             <AppIcon
@@ -670,11 +748,13 @@ export function HomeScreen({
           <View style={styles.detailsDivider} />
 
           <Pressable
-            accessibilityHint="Shows GPS, reminder and development information"
+            accessibilityHint={t(
+              'Shows GPS, reminder and development information',
+            )}
             accessibilityLabel={
               isDetailsExpanded
-                ? 'Hide parking details'
-                : 'Show parking details'
+                ? t('Hide parking details')
+                : t('Show parking details')
             }
             accessibilityRole="button"
             accessibilityState={{ expanded: isDetailsExpanded }}
@@ -685,9 +765,9 @@ export function HomeScreen({
             ]}
           >
             <View style={styles.detailsHeading}>
-              <Text style={styles.detailsTitle}>Details</Text>
+              <Text style={styles.detailsTitle}>{t('Details')}</Text>
               <Text style={styles.detailsSubtitle}>
-                GPS, reminder and development information
+                {t('GPS, reminder and development information')}
               </Text>
             </View>
             <AppIcon
@@ -703,7 +783,7 @@ export function HomeScreen({
               <InfoRow
                 detail={gpsDetail}
                 icon="navigation"
-                label="GPS detail"
+                label={t('GPS detail')}
                 tone={gpsTone}
                 value={gpsValue}
               />
@@ -712,12 +792,12 @@ export function HomeScreen({
                 detail={
                   reminderHasHydrated
                     ? reminderEnabled
-                      ? 'Enabled for active parking sessions.'
-                      : 'Disabled in reminder settings.'
-                    : 'Reading your saved preference.'
+                      ? t('Enabled for active parking sessions.')
+                      : t('Disabled in reminder settings.')
+                    : t('Reading your saved preference.')
                 }
                 icon="notification-active"
-                label="Parking reminder"
+                label={t('Parking reminder')}
                 tone={reminderTone}
                 value={reminderValue}
               />
@@ -726,9 +806,11 @@ export function HomeScreen({
                 <>
                   <View style={styles.detailsDivider} />
                   <InfoRow
-                    detail="Generated for the simulated parking-session flow."
+                    detail={t(
+                      'Generated for the simulated parking-session flow.',
+                    )}
                     icon="sms"
-                    label="SMS preview"
+                    label={t('SMS preview')}
                     tone="development"
                     value={smsPreview}
                   />
@@ -738,9 +820,11 @@ export function HomeScreen({
               <View style={styles.detailsActions}>
                 {!hasCoordinates || detectedZone ? (
                   <AppButton
-                    accessibilityHint="Requests foreground permission if needed and reads the current GPS position"
+                    accessibilityHint={t(
+                      'Requests foreground permission if needed and reads the current GPS position',
+                    )}
                     compact
-                    label="Refresh location"
+                    label={t('Refresh location')}
                     leadingIcon="refresh"
                     loading={isRefreshing}
                     onPress={handleRefreshLocation}
@@ -748,9 +832,9 @@ export function HomeScreen({
                   />
                 ) : null}
                 <AppButton
-                  accessibilityHint="Opens the local vehicle list"
+                  accessibilityHint={t('Opens the local vehicle list')}
                   compact
-                  label="Manage vehicles"
+                  label={t('Manage vehicles')}
                   leadingIcon="car"
                   onPress={onManageVehicles}
                   variant="ghost"
@@ -764,8 +848,9 @@ export function HomeScreen({
                   size={18}
                 />
                 <Text style={styles.dataNotice}>
-                  TEST-A1 and TEST-A2 use synthetic development boundaries.
-                  They are not verified or official Bitola parking zones.
+                  {t(
+                    'TEST-A1 and TEST-A2 use synthetic development boundaries. They are not verified or official Bitola parking zones.',
+                  )}
                 </Text>
               </View>
             </View>
@@ -792,6 +877,24 @@ function createStyles(theme: AppTheme, isCompact: boolean) {
     },
     contentCompact: {
       paddingHorizontal: theme.layout.compactScreenPadding,
+    },
+    demoNotice: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+    },
+    demoNoticeCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    demoNoticeTitle: {
+      ...theme.typography.label,
+      color: theme.colors.developmentText,
+    },
+    demoNoticeDetail: {
+      ...theme.typography.caption,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xxs,
     },
     zoneHero: {
       alignItems: 'center',

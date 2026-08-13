@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useLocalization } from '../localization';
 import { useAppTheme } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
 
@@ -30,6 +31,7 @@ export function AppButton({
   compact = false,
   fullWidth = true,
 }: AppButtonProps) {
+  const { t } = useLocalization();
   const { theme } = useAppTheme();
   const isDisabled = disabled || loading;
   const selectedVariant = getVariantColors(variant, theme.colors);
@@ -68,7 +70,7 @@ export function AppButton({
       <View style={styles.content}>
         {loading ? (
           <ActivityIndicator
-            accessibilityLabel="Loading"
+            accessibilityLabel={t('Loading')}
             color={
               disabled ? theme.colors.onDisabled : selectedVariant.foreground
             }

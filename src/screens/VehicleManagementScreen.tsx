@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -19,6 +18,9 @@ import {
   EmptyState,
   StatusBadge,
 } from '../components';
+import { isPublicDemoEnabled } from '../demo';
+import { useLocalization } from '../localization';
+import { requestConfirmation } from '../services/confirmationService';
 import { useVehicleStore } from '../stores/vehicleStore';
 import { type AppTheme, useAppTheme } from '../theme';
 import type { Vehicle } from '../types/vehicle';
@@ -38,6 +40,7 @@ export function VehicleManagementScreen({
   const setDefaultVehicle = useVehicleStore(
     (state) => state.setDefaultVehicle,
   );
+  const { t, translateMessage } = useLocalization();
   const { theme } = useAppTheme();
   const { width } = useWindowDimensions();
   const isCompact = width < 360;
@@ -84,29 +87,27 @@ export function VehicleManagementScreen({
   };
 
   const handleDelete = (vehicle: Vehicle) => {
-    Alert.alert(
-      'Delete vehicle?',
-      `${vehicle.plate} will be removed from this device.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            const result = deleteVehicle(vehicle.id);
+    requestConfirmation({
+      title: t('Delete vehicle?'),
+      message: t('{plate} will be removed from this device.', {
+        plate: vehicle.plate,
+      }),
+      cancelLabel: t('Cancel'),
+      confirmLabel: t('Delete'),
+      destructive: true,
+      onConfirm: () => {
+        const result = deleteVehicle(vehicle.id);
 
-            if (!result.success) {
-              setFormError(result.error ?? 'Unable to delete this vehicle.');
-              return;
-            }
+        if (!result.success) {
+          setFormError(result.error ?? 'Unable to delete this vehicle.');
+          return;
+        }
 
-            if (editingId === vehicle.id) {
-              resetForm();
-            }
-          },
-        },
-      ],
-    );
+        if (editingId === vehicle.id) {
+          resetForm();
+        }
+      },
+    });
   };
 
   const handleSetDefault = (vehicle: Vehicle) => {
@@ -131,10 +132,10 @@ export function VehicleManagementScreen({
       >
         <View style={styles.content}>
           <AppHeader
-            backLabel="Parking"
+            backLabel={t('Parking')}
             onBack={onBack}
-            subtitle="Keep the plate you park most often ready to use."
-            title="Your vehicles"
+            subtitle={t('Keep the plate you park most often ready to use.')}
+            title={t('Your vehicles')}
             variant="back"
           />
 
@@ -142,20 +143,22 @@ export function VehicleManagementScreen({
             <View style={styles.formHeading}>
               <View style={styles.formHeadingCopy}>
                 <Text style={styles.sectionTitle}>
-                  {editingId ? 'Edit vehicle' : 'Add a vehicle'}
+                  {editingId ? t('Edit vehicle') : t('Add a vehicle')}
                 </Text>
                 <Text style={styles.sectionDetail}>
-                  Stored privately on this device.
+                  {isPublicDemoEnabled
+                    ? t('Temporary demo data · Resets when this page reloads.')
+                    : t('Stored privately on this device.')}
                 </Text>
               </View>
               {editingId ? (
-                <StatusBadge label="Editing" tone="accent" />
+                <StatusBadge label={t('Editing')} tone="accent" />
               ) : null}
             </View>
 
-            <Text style={styles.inputLabel}>Registration plate</Text>
+            <Text style={styles.inputLabel}>{t('Registration plate')}</Text>
             <TextInput
-              accessibilityLabel="Vehicle registration plate"
+              accessibilityLabel={t('Vehicle registration plate')}
               autoCapitalize="characters"
               autoCorrect={false}
               editable={hasHydrated}
@@ -172,14 +175,15 @@ export function VehicleManagementScreen({
               value={plate}
             />
             <Text style={styles.inputHelp}>
-              Spaces and hyphens are removed when you save.
+              {t('Spaces and hyphens are removed when you save.')}
             </Text>
 
             <Text style={styles.inputLabel}>
-              Nickname <Text style={styles.optional}>(optional)</Text>
+              {t('Nickname')}{' '}
+              <Text style={styles.optional}>{t('(optional)')}</Text>
             </Text>
             <TextInput
-              accessibilityLabel="Vehicle nickname"
+              accessibilityLabel={t('Vehicle nickname')}
               autoCorrect={false}
               editable={hasHydrated}
               maxLength={40}
@@ -188,7 +192,7 @@ export function VehicleManagementScreen({
                 setFormError(null);
               }}
               onSubmitEditing={handleSubmit}
-              placeholder="Family car"
+              placeholder={t('Family car')}
               placeholderTextColor={theme.colors.textMuted}
               returnKeyType="done"
               selectionColor={theme.colors.accent}
@@ -198,7 +202,9 @@ export function VehicleManagementScreen({
 
             {formError ? (
               <View accessibilityRole="alert" style={styles.errorNotice}>
-                <Text style={styles.errorText}>{formError}</Text>
+                <Text style={styles.errorText}>
+                  {translateMessage(formError)}
+                </Text>
               </View>
             ) : null}
 
@@ -207,7 +213,7 @@ export function VehicleManagementScreen({
                 <AppButton
                   disabled={!hasHydrated}
                   fullWidth
-                  label={editingId ? 'Save changes' : 'Add vehicle'}
+                  label={editingId ? t('Save changes') : t('Add vehicle')}
                   leadingIcon={editingId ? 'check' : 'add'}
                   onPress={handleSubmit}
                 />
@@ -216,7 +222,7 @@ export function VehicleManagementScreen({
                 <View style={styles.secondaryFormAction}>
                   <AppButton
                     fullWidth
-                    label="Cancel"
+                    label={t('Cancel')}
                     leadingIcon="close"
                     onPress={resetForm}
                     variant="ghost"
@@ -227,9 +233,12 @@ export function VehicleManagementScreen({
           </Card>
 
           <View style={styles.listHeading}>
-            <Text style={styles.sectionTitle}>Saved vehicles</Text>
+            <Text style={styles.sectionTitle}>{t('Saved vehicles')}</Text>
             <StatusBadge
-              label={`${vehicles.length} ${vehicles.length === 1 ? 'vehicle' : 'vehicles'}`}
+              label={t(
+                vehicles.length === 1 ? '{count} vehicle' : '{count} vehicles',
+                { count: vehicles.length },
+              )}
               tone="neutral"
             />
           </View>
@@ -242,14 +251,18 @@ export function VehicleManagementScreen({
                 style={styles.loadingState}
               >
                 <ActivityIndicator color={theme.colors.accent} />
-                <Text style={styles.loadingText}>Loading saved vehicles…</Text>
+                <Text style={styles.loadingText}>
+                  {t('Loading saved vehicles…')}
+                </Text>
               </View>
             </Card>
           ) : vehicles.length === 0 ? (
             <EmptyState
-              description="Add a registration plate above. Your first vehicle becomes the default."
+              description={t(
+                'Add a registration plate above. Your first vehicle becomes the default.',
+              )}
               icon="car"
-              title="No vehicles saved"
+              title={t('No vehicles saved')}
             />
           ) : (
             <View style={styles.vehicleList}>
@@ -266,11 +279,11 @@ export function VehicleManagementScreen({
                         {vehicle.plate}
                       </Text>
                       <Text style={styles.nickname}>
-                        {vehicle.nickname ?? 'No nickname'}
+                        {vehicle.nickname ?? t('No nickname')}
                       </Text>
                     </View>
                     {vehicle.isDefault ? (
-                      <StatusBadge label="Default" tone="success" />
+                      <StatusBadge label={t('Default')} tone="success" />
                     ) : null}
                   </View>
 
@@ -278,10 +291,13 @@ export function VehicleManagementScreen({
                     {!vehicle.isDefault ? (
                       <View style={styles.vehicleAction}>
                         <AppButton
-                          accessibilityLabel={`Set ${vehicle.plate} as default vehicle`}
+                          accessibilityLabel={t(
+                            'Set {plate} as default vehicle',
+                            { plate: vehicle.plate },
+                          )}
                           compact
                           fullWidth
-                          label="Set default"
+                          label={t('Set default')}
                           leadingIcon="selected"
                           onPress={() => handleSetDefault(vehicle)}
                           variant="secondary"
@@ -290,10 +306,12 @@ export function VehicleManagementScreen({
                     ) : null}
                     <View style={styles.vehicleAction}>
                       <AppButton
-                        accessibilityLabel={`Edit ${vehicle.plate}`}
+                        accessibilityLabel={t('Edit {plate}', {
+                          plate: vehicle.plate,
+                        })}
                         compact
                         fullWidth
-                        label="Edit"
+                        label={t('Edit')}
                         leadingIcon="edit"
                         onPress={() => handleEdit(vehicle)}
                         variant="ghost"
@@ -301,10 +319,12 @@ export function VehicleManagementScreen({
                     </View>
                     <View style={styles.vehicleAction}>
                       <AppButton
-                        accessibilityLabel={`Delete ${vehicle.plate}`}
+                        accessibilityLabel={t('Delete {plate}', {
+                          plate: vehicle.plate,
+                        })}
                         compact
                         fullWidth
-                        label="Delete"
+                        label={t('Delete')}
                         leadingIcon="delete"
                         onPress={() => handleDelete(vehicle)}
                         variant="danger"

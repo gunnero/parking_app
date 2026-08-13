@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import { publicDemoAwareStateStorage } from "../demo/publicDemoEnvironment";
 import type {
   ParkingSession,
   ParkingSessionRequestResult,
@@ -227,7 +228,9 @@ export const useParkingSessionStore = create<ParkingSessionStoreState>()(
     {
       name: PARKING_SESSION_STORAGE_KEY,
       version: PARKING_SESSION_STORAGE_VERSION,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() =>
+        publicDemoAwareStateStorage(AsyncStorage),
+      ),
       partialize: (state): PersistedParkingSessionState => ({
         session: state.session,
       }),

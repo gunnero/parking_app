@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { useLocalization } from '../localization';
 import { useAppTheme } from '../theme';
 import { AppButton } from './AppButton';
 import { AppIcon, type AppIconName } from './AppIcon';
@@ -29,6 +30,7 @@ export function PermissionCard({
   onAction,
   loading = false,
 }: PermissionCardProps) {
+  const { t } = useLocalization();
   const { theme } = useAppTheme();
   const visual = getVisual(state, theme.colors);
 
@@ -49,7 +51,7 @@ export function PermissionCard({
           >
             {loading || state === 'requesting' ? (
               <ActivityIndicator
-                accessibilityLabel="Requesting permission"
+                accessibilityLabel={t('Requesting permission')}
                 color={visual.foreground}
                 size="small"
               />
