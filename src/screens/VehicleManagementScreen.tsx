@@ -179,11 +179,11 @@ export function VehicleManagementScreen({
             </Text>
 
             <Text style={styles.inputLabel}>
-              {t('Nickname')}{' '}
+              {t('Vehicle name')}{' '}
               <Text style={styles.optional}>{t('(optional)')}</Text>
             </Text>
             <TextInput
-              accessibilityLabel={t('Vehicle nickname')}
+              accessibilityLabel={t('Vehicle name')}
               autoCorrect={false}
               editable={hasHydrated}
               maxLength={40}
@@ -279,7 +279,7 @@ export function VehicleManagementScreen({
                         {vehicle.plate}
                       </Text>
                       <Text style={styles.nickname}>
-                        {vehicle.nickname ?? t('No nickname')}
+                        {vehicle.nickname ?? t('No vehicle name')}
                       </Text>
                     </View>
                     {vehicle.isDefault ? (

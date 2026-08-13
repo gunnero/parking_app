@@ -211,8 +211,7 @@ export const MACEDONIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Editing": "Уредување",
   "Vehicle registration plate": "Регистарска табличка",
   "Plate": "Табличка",
-  "Nickname": "Прекар",
-  "Vehicle nickname": "Прекар на возилото",
+  "Vehicle name": "Име на возило",
   "Family car": "Семејно возило",
   "Save changes": "Зачувај ги промените",
   "Add vehicle": "Додај возило",
@@ -222,7 +221,7 @@ export const MACEDONIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Loading saved vehicles…": "Се вчитуваат зачуваните возила…",
   "Registration plate": "Регистарска табличка",
   "(optional)": "(незадолжително)",
-  "No nickname": "Без прекар",
+  "No vehicle name": "Без име",
   "Spaces and hyphens are removed when you save.":
     "Празните места и цртичките се отстрануваат при зачувување.",
   "Stored privately on this device.": "Приватно зачувано на овој уред.",
