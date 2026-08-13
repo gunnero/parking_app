@@ -1,15 +1,24 @@
 # Apache 2.4 example for the static Expo web pilot.
 # Review paths and modules before enabling this file.
 
-<VirtualHost *:80>
+<VirtualHost 188.245.47.216:80 [2a01:4f8:c2c:18df::1]:80>
     ServerName app.kalveri.com
+    DocumentRoot /var/www/app.kalveri.com/current
+
+    <Directory /var/www/app.kalveri.com/current>
+        AllowOverride None
+        Options -Indexes
+        Require all granted
+    </Directory>
 
     RewriteEngine On
+    # Keep the HTTP-01 challenge reachable for unattended certificate renewal.
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
     RewriteRule ^ https://app.kalveri.com%{REQUEST_URI} [R=308,L,NE]
 </VirtualHost>
 
 <IfModule mod_ssl.c>
-<VirtualHost *:443>
+<VirtualHost 188.245.47.216:443 [2a01:4f8:c2c:18df::1]:443>
     ServerName app.kalveri.com
     DocumentRoot /var/www/app.kalveri.com/current
 
@@ -29,19 +38,21 @@
         RewriteEngine On
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteCond %{REQUEST_URI} !^/(?:_expo|assets)/ [NC]
+        RewriteCond %{REQUEST_URI} !\.[A-Za-z0-9]{2,8}$
         RewriteRule ^ /index.html [L]
-
-        # Optional meeting-only access control. Create the password file
-        # outside the web root, then uncomment all four directives.
-        # To enable Basic authentication, COMMENT OUT `Require all granted`
-        # above, then uncomment all four directives below. Apache otherwise
-        # treats sibling Require directives as RequireAny and anonymous users
-        # would still be granted access.
-        # AuthType Basic
-        # AuthName "Parking Bitola pilot"
-        # AuthUserFile /etc/apache2/app-kalveri.htpasswd
-        # Require valid-user
     </Directory>
+
+    # Optional meeting-only access control. Create the password file outside
+    # the document root, then uncomment this complete block. Location-based
+    # authentication avoids sibling RequireAny rules and keeps HTTP ACME
+    # renewal independent from the password prompt.
+    # <LocationMatch "^/(?!\.well-known/acme-challenge/)">
+    #     AuthType Basic
+    #     AuthName "Parking Bitola pilot"
+    #     AuthUserFile /etc/apache2/app-kalveri.htpasswd
+    #     Require valid-user
+    # </LocationMatch>
 
     # This pilot must not be indexed or cached as an official service.
     Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
@@ -54,7 +65,7 @@
     Header always unset X-Powered-By
 
     # React Native Web injects styles at runtime, hence style-src unsafe-inline.
-    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; manifest-src 'self'"
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
 
     <Files "index.html">
         Header set Cache-Control "no-cache, no-store, must-revalidate"

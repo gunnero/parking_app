@@ -36,10 +36,11 @@ official Bitola parking service.
    standard Let's Encrypt paths under
    `/etc/letsencrypt/live/app.kalveri.com/`.
 5. If Basic authentication is required, create
-   `/etc/apache2/app-kalveri.htpasswd` with `htpasswd`, then uncomment the four
-   authentication directives together **and comment out `Require all granted`**.
-   Apache combines sibling `Require` directives as `RequireAny`, so leaving the
-   anonymous grant enabled would bypass the password prompt.
+   `/etc/apache2/app-kalveri.htpasswd` with `htpasswd`, then uncomment the full
+   `<LocationMatch>` block. Do not add `Require valid-user` beside the
+   directory's `Require all granted`: Apache would combine those sibling rules
+   as `RequireAny` and allow anonymous access. The HTTP ACME challenge remains
+   outside the HTTPS authentication block so unattended renewal can continue.
 6. Run `apachectl configtest` before reloading Apache. Do not reload if the
    configuration test fails.
 
