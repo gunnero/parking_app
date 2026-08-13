@@ -5,6 +5,14 @@
     ServerName app.kalveri.com
     DocumentRoot /var/www/app.kalveri.com/current
 
+    Alias /.well-known/acme-challenge/ /var/www/app.kalveri.com/acme/.well-known/acme-challenge/
+
+    <Directory /var/www/app.kalveri.com/acme/.well-known/acme-challenge>
+        AllowOverride None
+        Options -Indexes
+        Require all granted
+    </Directory>
+
     <Directory /var/www/app.kalveri.com/current>
         AllowOverride None
         Options -Indexes

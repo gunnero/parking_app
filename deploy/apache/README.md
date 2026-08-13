@@ -32,9 +32,10 @@ official Bitola parking service.
    overwrite.
 3. Copy `app.kalveri.com.conf.example` into the Apache sites directory, review
    every path, then enable the site.
-4. Obtain a certificate covering `app.kalveri.com`. The example expects the
-   standard Let's Encrypt paths under
-   `/etc/letsencrypt/live/app.kalveri.com/`.
+4. Obtain a certificate covering `app.kalveri.com` with webroot
+   `/var/www/app.kalveri.com/acme`. The example keeps that ACME path stable
+   across atomic app releases and expects the resulting standard Let's Encrypt
+   paths under `/etc/letsencrypt/live/app.kalveri.com/`.
 5. If Basic authentication is required, create
    `/etc/apache2/app-kalveri.htpasswd` with `htpasswd`, then uncomment the full
    `<LocationMatch>` block. Do not add `Require valid-user` beside the
