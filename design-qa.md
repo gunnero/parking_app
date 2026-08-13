@@ -1,12 +1,11 @@
 # Bilingual web-pilot design QA
 
-## Comparison target
+## Current public evidence
 
-- Source visual truth: `/Users/aleksandardimovski/.codex/generated_images/019fecb4-9fdf-72c1-b70b-61d3c4132c84/exec-6432bede-b4be-4d61-9cc6-4de6ff276136.png`
-- Macedonian implementation, 390 × 844: `/tmp/parkingapp-bilingual-home-mk-390-viewport.png`
-- Macedonian implementation, 320 × 568: `/tmp/parkingapp-bilingual-home-mk-320.png`
-- Macedonian settings, Light, 390 × 844: `/tmp/parkingapp-bilingual-settings-mk-light-390.png`
-- Combined source/implementation evidence: `/tmp/parkingapp-bilingual-option1-comparison.png`
+- [Macedonian Home, Dark, 390 × 844](docs/screenshots/01-home-mobile-mk-dark.jpg)
+- [Macedonian active session, Light, 390 × 844](docs/screenshots/02-session-active-mobile-mk-light.jpg)
+- [Macedonian vehicle management, Light](docs/screenshots/03-vehicles-desktop-mk-light.jpg)
+- [Macedonian History, Dark](docs/screenshots/04-history-desktop-mk-dark.jpg)
 
 The comparison confirms that the meeting pilot preserves the selected Option 1
 direction: quiet civic typography, warm neutral canvas, restrained blue accent,
@@ -55,13 +54,11 @@ final result: passed
 
 ## Comparison target
 
-- Source visual truth: `/Users/aleksandardimovski/.codex/generated_images/019fecb4-9fdf-72c1-b70b-61d3c4132c84/exec-6432bede-b4be-4d61-9cc6-4de6ff276136.png`
-- Browser-rendered implementation: `/tmp/parkingapp-park006-screenshots/history-populated-light-390x844.png`
-- Combined comparison evidence: `/tmp/parkingapp-park006-screenshots/option1-vs-history-390x844.png`
+- Current browser-rendered evidence: [Macedonian History, Dark](docs/screenshots/04-history-desktop-mk-dark.jpg)
 - State: existing Option 1 Home visual language compared with the PARK-006 populated History state.
-- Viewport: 390 × 844 CSS pixels, device density 1 for the implementation.
-- Source pixels: 853 × 1844, normalized to 390 × 844 for comparison.
-- Implementation pixels: 390 × 844 at a 390 × 844 CSS viewport.
+- Current committed History capture: 1280 × 720 CSS pixels in Dark mode.
+- The original development matrix separately covered 320, 375, 390, and 430
+  pixel mobile widths.
 
 The source and implementation are different product states, so this is not a
 pixel-for-pixel layout comparison. The source remains authoritative for the
@@ -72,8 +69,7 @@ information architecture and content.
 
 ## Full-view comparison evidence
 
-The combined image places the normalized source and rendered History screen in
-one comparison input. History preserves the source's strong title hierarchy,
+The current History evidence preserves the source's strong title hierarchy,
 warm neutral canvas, blue functional accent, rounded bordered cards, compact
 semantic badges, vehicle icon treatment, and generous vertical rhythm. The
 new list is denser than Home by necessity, but it remains visibly part of the
@@ -84,9 +80,8 @@ and no visual change was made in response to that pass.
 
 ## Focused comparison evidence
 
-The header and first two history cards in
-`/tmp/parkingapp-park006-screenshots/option1-vs-history-390x844.png` are readable
-at the normalized size, so a separate crop was not needed. They show the
+The History screenshot is readable at repository-preview size, so a separate
+crop was not needed. It shows the
 relevant typography, border/radius, icon, metadata, badge, spacing, and color
 surfaces at useful scale.
 
@@ -111,15 +106,9 @@ surfaces at useful scale.
 
 ## Responsive and theme evidence
 
-- Light empty, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-empty-light-390x844.png`
-- Light populated, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-populated-light-390x844.png`
-- Light detail, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-detail-light-390x844.png`
-- Dark populated, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-populated-dark-390x844.png`
-- Dark detail, 390 × 844: `/tmp/parkingapp-park006-screenshots/history-detail-dark-390x844.png`
-- Long fields, Light 320 × 568: `/tmp/parkingapp-park006-screenshots/history-long-fields-light-320x568.png`
-- Missing optional fields, Light 375 × 812: `/tmp/parkingapp-park006-screenshots/history-missing-fields-light-375x812.png`
-- Populated, Dark 430 × 932: `/tmp/parkingapp-park006-screenshots/history-populated-dark-430x932.png`
-- Completed receipt, Light 390 × 844: `/tmp/parkingapp-park006-screenshots/session-receipt-light-390x844.png`
+The committed screenshot set covers mobile and desktop layouts, Light and Dark
+themes, Macedonian Home, active-session, vehicle-management, and History states.
+The fuller development matrix also covered 320, 375, 390, and 430 pixel widths.
 
 Measured document widths equal their 320, 375, 390, and 430 pixel viewports.
 No horizontal overflow, date/time clipping, plate overflow, or unusable action

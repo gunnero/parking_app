@@ -1,5 +1,14 @@
 # Parking Bitola pilot — meeting brief
 
+## Meeting links
+
+- [Public Macedonian demo](https://app.kalveri.com/?demo=1&lang=mk)
+- [Public English demo](https://app.kalveri.com/?demo=1&lang=en)
+- [Source repository](https://github.com/gunnero/parking_app)
+
+The demo does not require a password. It remains marked as an unofficial
+Kalveri pilot and is configured with `noindex` crawler directives.
+
 ## What is ready to demonstrate
 
 - A mobile-first web pilot in Macedonian and English.
