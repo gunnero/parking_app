@@ -7,6 +7,8 @@ import { publicDemoAwareStateStorage } from "../demo/publicDemoEnvironment";
 export type AppLanguage = "en" | "mk";
 export type LanguagePreference = "system" | AppLanguage;
 
+export const DEFAULT_LANGUAGE_PREFERENCE: LanguagePreference = "mk";
+
 export const LANGUAGE_PREFERENCE_STORAGE_KEY =
   "parkingapp-language-preference";
 
@@ -32,13 +34,13 @@ export const useLanguageStore = create<LanguageStoreState>()(
       markHydrationFinished = () => set({ hasHydrated: true });
 
       return {
-        preference: "system",
+        preference: DEFAULT_LANGUAGE_PREFERENCE,
         hasHydrated: false,
         setPreference: (preference) => {
           set({
             preference: isLanguagePreference(preference)
               ? preference
-              : "system",
+              : DEFAULT_LANGUAGE_PREFERENCE,
           });
         },
       };
@@ -60,13 +62,13 @@ export const useLanguageStore = create<LanguageStoreState>()(
           ...currentState,
           preference: isLanguagePreference(storedPreference)
             ? storedPreference
-            : "system",
+            : DEFAULT_LANGUAGE_PREFERENCE,
         };
       },
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
           useLanguageStore.setState({
-            preference: "system",
+            preference: DEFAULT_LANGUAGE_PREFERENCE,
             hasHydrated: true,
           });
           return;

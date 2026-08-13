@@ -6,8 +6,14 @@ import {
 import { useLocationStore } from "../stores/locationStore";
 import { useParkingReminderStore } from "../stores/parkingReminderStore";
 import { useParkingSessionStore } from "../stores/parkingSessionStore";
-import { useThemeStore } from "../stores/themeStore";
-import { useLanguageStore } from "../stores/languageStore";
+import {
+  DEFAULT_THEME_PREFERENCE,
+  useThemeStore,
+} from "../stores/themeStore";
+import {
+  DEFAULT_LANGUAGE_PREFERENCE,
+  useLanguageStore,
+} from "../stores/languageStore";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { LocationCoordinates, LocationState } from "../types/location";
 import type { Vehicle } from "../types/vehicle";
@@ -51,7 +57,9 @@ export interface PublicDemoApplicationResult {
  */
 function publicDemoLanguage(): "en" | "mk" | "system" {
   const value = getPublicDemoQueryValue("lang");
-  return value === "mk" || value === "en" ? value : "system";
+  return value === "mk" || value === "en"
+    ? value
+    : DEFAULT_LANGUAGE_PREFERENCE;
 }
 
 function setPublicDemoLocation(): void {
@@ -124,7 +132,10 @@ export function applyPublicDemoScenario(): PublicDemoApplicationResult {
     operationError: null,
     smsFlowInFlight: false,
   });
-  useThemeStore.setState({ hasHydrated: true });
+  useThemeStore.setState({
+    preference: DEFAULT_THEME_PREFERENCE,
+    hasHydrated: true,
+  });
   useLanguageStore.setState({
     preference: publicDemoLanguage(),
     hasHydrated: true,

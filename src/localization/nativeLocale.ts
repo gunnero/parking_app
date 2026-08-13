@@ -11,6 +11,7 @@ type NativeLanguagePreference = "system" | NativeAppLanguage;
 // directly instead.
 const LANGUAGE_PREFERENCE_STORAGE_KEY =
   "parkingapp-language-preference";
+const DEFAULT_NATIVE_APP_LANGUAGE: NativeAppLanguage = "mk";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -64,8 +65,9 @@ export function getSystemNativeAppLanguage(): NativeAppLanguage {
 
 /**
  * Resolves the language selected in the app without relying on React or a
- * hydrated Zustand store. Malformed/unavailable storage safely falls back to
- * the current device language.
+ * hydrated Zustand store. An explicit system preference follows the device;
+ * missing, malformed, or unavailable storage uses the app's Macedonian
+ * default.
  */
 export async function getNativeAppLanguage(): Promise<NativeAppLanguage> {
   const systemLanguage = getSystemNativeAppLanguage();
@@ -76,10 +78,14 @@ export async function getNativeAppLanguage(): Promise<NativeAppLanguage> {
     );
     const preference = readPersistedPreference(serialized);
 
-    return preference === "en" || preference === "mk"
-      ? preference
-      : systemLanguage;
+    if (preference === "en" || preference === "mk") {
+      return preference;
+    }
+
+    return preference === "system"
+      ? systemLanguage
+      : DEFAULT_NATIVE_APP_LANGUAGE;
   } catch {
-    return systemLanguage;
+    return DEFAULT_NATIVE_APP_LANGUAGE;
   }
 }

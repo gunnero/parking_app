@@ -61,7 +61,9 @@
 
 The meeting host always runs the safe, fixed-location demo. Opening
 `app.kalveri.com` from a phone therefore detects `TEST-A1` without reading the
-phone's real GPS location. No account or password is required:
+phone's real GPS location. It starts in Macedonian and Light mode; visitors can
+still switch to English or Dark mode from Appearance. No account or password is
+required:
 
 - Sample vehicle: `BT7713AD`
 - Sample zone: `TEST-A1`

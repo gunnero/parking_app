@@ -20,8 +20,9 @@ Kalveri pilot and is configured with `noindex` crawler directives.
 - Local parking history with no account, backend, or cloud upload.
 
 The meeting host always runs the fixed `TEST-A1` scenario, regardless of the
-phone's real location. It resets when the page reloads and never opens an SMS
-composer or requests device capabilities.
+phone's real location. A fresh page starts in Macedonian and Light mode. It
+resets when the page reloads and never opens an SMS composer or requests device
+capabilities.
 
 ## What must not be presented as production-ready
 

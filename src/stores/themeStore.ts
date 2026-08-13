@@ -6,6 +6,7 @@ import { publicDemoAwareStateStorage } from "../demo/publicDemoEnvironment";
 import type { ThemePreference } from "../theme/types";
 
 export const THEME_PREFERENCE_STORAGE_KEY = "parkingapp-theme-preference";
+export const DEFAULT_THEME_PREFERENCE: ThemePreference = "light";
 
 export interface ThemeStoreState {
   preference: ThemePreference;
@@ -27,10 +28,14 @@ export const useThemeStore = create<ThemeStoreState>()(
       markHydrationFinished = () => set({ hasHydrated: true });
 
       return {
-        preference: "system",
+        preference: DEFAULT_THEME_PREFERENCE,
         hasHydrated: false,
         setPreference: (preference) => {
-          set({ preference: isThemePreference(preference) ? preference : "system" });
+          set({
+            preference: isThemePreference(preference)
+              ? preference
+              : DEFAULT_THEME_PREFERENCE,
+          });
         },
       };
     },
@@ -51,12 +56,15 @@ export const useThemeStore = create<ThemeStoreState>()(
           ...currentState,
           preference: isThemePreference(storedPreference)
             ? storedPreference
-            : "system",
+            : DEFAULT_THEME_PREFERENCE,
         };
       },
       onRehydrateStorage: () => (_state, error) => {
         if (error) {
-          useThemeStore.setState({ preference: "system", hasHydrated: true });
+          useThemeStore.setState({
+            preference: DEFAULT_THEME_PREFERENCE,
+            hasHydrated: true,
+          });
           return;
         }
 

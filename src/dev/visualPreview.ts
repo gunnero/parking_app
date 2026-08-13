@@ -9,8 +9,14 @@ import {
 } from "../stores/parkingHistoryStore";
 import { useParkingReminderStore } from "../stores/parkingReminderStore";
 import { useParkingSessionStore } from "../stores/parkingSessionStore";
-import { useThemeStore } from "../stores/themeStore";
-import { useLanguageStore } from "../stores/languageStore";
+import {
+  DEFAULT_THEME_PREFERENCE,
+  useThemeStore,
+} from "../stores/themeStore";
+import {
+  DEFAULT_LANGUAGE_PREFERENCE,
+  useLanguageStore,
+} from "../stores/languageStore";
 import { useVehicleStore } from "../stores/vehicleStore";
 import type { ThemePreference } from "../theme/types";
 import type { LocationState } from "../types/location";
@@ -80,7 +86,7 @@ export interface VisualPreviewApplicationResult {
 }
 
 const DEFAULT_SCENARIO: VisualPreviewScenario = "home-development";
-const DEFAULT_THEME: ThemePreference = "system";
+const DEFAULT_THEME: ThemePreference = DEFAULT_THEME_PREFERENCE;
 const PREVIEW_INSTANT = Date.parse("2026-08-11T14:00:00.000Z");
 const PREVIEW_LOCATION = {
   latitude: 41.0305,
@@ -704,7 +710,10 @@ export function applyVisualPreviewScenario(
       : null;
 
   useThemeStore.setState({ preference: theme, hasHydrated: true });
-  useLanguageStore.setState({ hasHydrated: true });
+  useLanguageStore.setState({
+    preference: DEFAULT_LANGUAGE_PREFERENCE,
+    hasHydrated: true,
+  });
   useParkingHistoryStore.setState({
     records: historyRecords,
     hasHydrated: true,
